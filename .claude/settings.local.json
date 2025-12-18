@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(buildVisualStudiobuild.bat Build x64 Release)",
+      "Bash(cmd.exe /c \"cd /d D:\\cpp\\notepad4 && build\\VisualStudio\\build.bat Build x64 Release\")",
+      "Bash(cmd //c \"D:\\cpp\\notepad4\\build\\VisualStudio\\build.bat Build x64 Release 1\")",
+      "Bash(start \"\" \"D:\\cpp\\notepad4\\build\\bin\\Release\\x64\\Notepad4.exe\")"
+    ]
+  }
+}
