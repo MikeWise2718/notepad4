@@ -4,7 +4,22 @@
       "Bash(buildVisualStudiobuild.bat Build x64 Release)",
       "Bash(cmd.exe /c \"cd /d D:\\cpp\\notepad4 && build\\VisualStudio\\build.bat Build x64 Release\")",
       "Bash(cmd //c \"D:\\cpp\\notepad4\\build\\VisualStudio\\build.bat Build x64 Release 1\")",
-      "Bash(start \"\" \"D:\\cpp\\notepad4\\build\\bin\\Release\\x64\\Notepad4.exe\")"
+      "Bash(start \"\" \"D:\\cpp\\notepad4\\build\\bin\\Release\\x64\\Notepad4.exe\")",
+      "Bash(cmd //c \"D:\\\\cpp\\\\notepad4\\\\build\\\\VisualStudio\\\\build.bat Build x64 Release\")",
+      "Bash(git -C D:/cpp/notepad4 add Notepad4.ini install-config.bat)",
+      "Bash(git -C D:/cpp/notepad4 status)",
+      "Bash(powershell -Command \"[System.IO.File]::WriteAllText\\(''D:/cpp/notepad4/Notepad4.ini'', @''\n[Notepad4]\n; Custom Notepad4 settings\n\n[Settings]\n\n[Settings2]\n; Disable auto-completion \\(word completion, tag closing, document scanning\\)\nAutoCompleteOption=0\n\n; Disable auto-insert of matching brackets, quotes, etc.\nAutoInsertMask=0\n\n[Recent Files]\n[Recent Find]\n[Recent Replace]\n[Custom Colors]\n[Styles]\n[Suppressed Messages]\n''@, [System.Text.Encoding]::Unicode\\)\")",
+      "Bash(git -C D:/cpp/notepad4 commit -m \"$\\(cat <<''EOF''\nAdd Notepad4 config with auto-completion disabled\n\n- Notepad4.ini: Disables AutoCompleteOption and AutoInsertMask\n- install-config.bat: Installs config to %LOCALAPPDATA%\\\\Notepad4 and C:\\\\ut\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(cmd //c \"D:\\\\cpp\\\\notepad4\\\\install-config.bat\")",
+      "Bash(ls:*)",
+      "Bash(powershell -Command \"Get-Content -Encoding Unicode ''C:/Users/mike/AppData/Local/Notepad4/Notepad4.ini''\")",
+      "Bash(cmd //c \"dir /s /b C:\\\\Users\\\\mike\\\\Notepad4.ini C:\\\\Users\\\\mike\\\\AppData\\\\*\\\\Notepad4\\\\Notepad4.ini 2>nul\")",
+      "Bash(xxd:*)",
+      "Bash(powershell -Command \"[System.IO.File]::WriteAllText\\(''D:/cpp/notepad4/Notepad4.ini'', @''\n[Notepad4]\n; Custom Notepad4 settings\n\n[Settings]\n; Disable auto-completion \\(word completion, tag closing, document scanning\\)\nAutoCompleteOption=0\n\n; Disable auto-insert of matching brackets, quotes, etc.\nAutoInsertMask=0\n\n[Settings2]\n\n[Recent Files]\n[Recent Find]\n[Recent Replace]\n[Custom Colors]\n[Styles]\n[Suppressed Messages]\n''@, [System.Text.Encoding]::Unicode\\)\")",
+      "Bash(git -C D:/cpp/notepad4 add Notepad4.ini)",
+      "Bash(git -C D:/cpp/notepad4 commit --amend -m \"$\\(cat <<''EOF''\nAdd Notepad4 config with auto-completion disabled\n\n- Notepad4.ini: Disables AutoCompleteOption and AutoInsertMask in [Settings] section\n- install-config.bat: Installs config to %LOCALAPPDATA%\\\\Notepad4 and C:\\\\ut\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C D:/cpp/notepad4 push)",
+      "Bash(git -C D:/cpp/notepad4 push --force-with-lease)"
     ]
   }
 }
