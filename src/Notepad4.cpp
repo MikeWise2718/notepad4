@@ -5504,11 +5504,13 @@ void LoadSettings() noexcept {
 	iAutoScaleToolbar = section.GetInt(L"AutoScaleToolbar", USER_DEFAULT_SCREEN_DPI);
 	bShowStatusbar = section.GetBool(L"ShowStatusbar", true);
 
+#if NP2_ENABLE_MARKDOWN_PREVIEW
 	bShowMarkdownPreview = section.GetBool(L"ShowMarkdownPreview", false);
 	iValue = section.GetInt(L"MarkdownPreviewSplit", MarkdownPreviewSplit_Default);
 	iMarkdownPreviewSplit = clamp(iValue, static_cast<int>(MarkdownPreviewSplit_MinValue), static_cast<int>(MarkdownPreviewSplit_MaxValue));
 	iValue = section.GetInt(L"MarkdownPreviewRefresh", MarkdownPreviewRefresh_Default);
 	iMarkdownPreviewRefresh = clamp(iValue, 0, static_cast<int>(MarkdownPreviewRefresh_MaxValue));
+#endif
 
 	iValue = section.GetInt(L"FullScreenMode", FullScreenMode_Default);
 	iFullScreenMode = iValue;
@@ -5749,9 +5751,11 @@ void SaveSettings(bool bSaveSettingsNow) noexcept {
 	section.SetBoolEx(L"ShowStatusbar", bShowStatusbar, true);
 	section.SetIntEx(L"FullScreenMode", iFullScreenMode, FullScreenMode_Default);
 
+#if NP2_ENABLE_MARKDOWN_PREVIEW
 	section.SetBoolEx(L"ShowMarkdownPreview", bShowMarkdownPreview, false);
 	section.SetIntEx(L"MarkdownPreviewSplit", iMarkdownPreviewSplit, MarkdownPreviewSplit_Default);
 	section.SetIntEx(L"MarkdownPreviewRefresh", iMarkdownPreviewRefresh, MarkdownPreviewRefresh_Default);
+#endif
 
 	SaveIniSection(INI_SECTION_NAME_SETTINGS, pIniSectionBuf);
 	NP2HeapFree(pIniSectionBuf);
