@@ -20,15 +20,37 @@ Read that first — it establishes the platform constraints that shape everythin
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Vendor md4c, wire into MSVC + MinGW builds | Not started |
-| 2 | Markdown→HTML conversion layer (`MarkdownPreview.cpp`) | Not started |
-| 3 | Splitter: extend `MsgSize`, add drag handling | Not started |
-| 4 | WebView2 host: lazy init, dynamic loader, graceful degradation | Not started |
-| 5 | Menu item, accelerator, `IDM_VIEW_MARKDOWN_PREVIEW` | Not started |
-| 6 | Settings persistence (visible, split ratio, refresh mode) | Not started |
-| 7 | Refresh-policy implementation (3 modes) | Not started |
-| 8 | Dark theme CSS following editor theme | Not started |
-| 9 | Build verification across x64/Win32/ARM64/MinGW | Not started |
+| 1 | Vendor md4c, wire into MSVC + MinGW builds | Done |
+| 2 | Markdown→HTML conversion layer (`MarkdownPreview.cpp`) | Done |
+| 3 | Splitter: extend `MsgSize`, add drag handling | Done |
+| 4 | WebView2 host: lazy init, dynamic loader, graceful degradation | Done |
+| 5 | Menu item, accelerator, `IDM_VIEW_MARKDOWN_PREVIEW` | Done |
+| 6 | Settings persistence (visible, split ratio, refresh mode) | Done |
+| 7 | Refresh-policy implementation (3 modes) | Done |
+| 8 | Dark theme CSS following editor theme | Done |
+| 9 | Build verification across x64/Win32/ARM64/MinGW | Partial — ARM64 untested |
+
+## Verification performed
+
+Run against the built binary with a document exercising every GFM feature:
+
+- Split pane renders, editor left / preview right, no overlap.
+- Live refresh reflects **unsaved buffer** edits, not the file on disk.
+- All three refresh modes and the manual refresh command execute cleanly.
+- Toggle off/on cycling is stable, including toggling during async creation.
+- Settings persist and the pane is restored on the next launch.
+- Splitter drag resizes both panes live; the position persists (`MarkdownPreviewSplit=30`).
+- md4c conversion verified standalone: tables, strikethrough, task lists,
+  fenced code with language class, autolinks, UTF-8 (✓ éàü 日本語).
+
+Builds: **x64**, **Win32**, **AVX2** clean with no new warnings. **MinGW/GCC 15.2**
+compiles `MarkdownPreview.cpp` to an empty 454-byte object as intended, and
+`Notepad4.cpp` passes a syntax check with the feature disabled.
+
+**ARM64 is untested** — the ARM64 cross-compiler is not installed on this
+machine (`VC\Tools\MSVC\14.44.35207\bin\Hostx64\arm64` absent), so the build
+fails before compiling anything. This is an environment gap, not a code
+problem, but it does mean ARM64 remains unverified.
 
 ## Layout integration — the part I was most worried about
 
@@ -184,13 +206,42 @@ emit matching CSS custom properties. Implement after the pane works; do not bloc
 - Avoid WIL (a separate NuGet header package). WRL ships with MSVC and supplies
   `Callback<>`; the codebase already does raw COM in `src/Bridge.cpp`.
 
-## Open questions
+## Decisions taken during implementation
 
-1. **Accelerator key** — needs a free combination; F11 variants are taken.
-2. **Non-Markdown files** — hide the menu item, or leave it enabled?
-3. **Ship `WebView2Loader.dll`** beside `Notepad4.exe`, or require the system runtime?
-4. **`NavigateToString` size ceiling** — measure against a large document before
-   committing to the string path.
+These were the spec's open questions, resolved while the user was away.
+
+1. **Accelerator: `Ctrl+F10`.** Every F11 and F12 combination is already bound;
+   F10 had only the bare key (`IDM_FILE_READONLY_MODE`), leaving Ctrl and Shift
+   free. `Ctrl+F10` also sits naturally beside `Ctrl+F11` (toolbar) and
+   `Shift+F11` (statusbar), the other pane toggles.
+
+2. **The menu item stays enabled for all file types**, rather than being hidden
+   for non-Markdown documents. Hiding it would be surprising while editing an
+   unsaved buffer destined to become `.md`, and rendering a non-Markdown file as
+   Markdown is harmless — plain text renders as paragraphs. The item *is* hidden
+   when WebView2 genuinely cannot work (below Windows 10, or no runtime), since
+   there the feature is impossible rather than merely unusual.
+
+3. **`WebView2Loader.dll` ships beside `Notepad4.exe`.** This was forced by a
+   finding, not a preference: the installed WebView2 *Runtime* does not contain
+   the loader. Verified against runtime 151.0.4129.78, which has
+   `msedgewebview2.exe` but no `WebView2Loader.dll`. The loader comes only from
+   the SDK, so the application must distribute it. The DLLs are vendored per
+   architecture under `src/webview2/`.
+
+4. **`NavigateToString` is capped at 1.5 MB** with UTF-8-aware truncation (the
+   documented limit is around 2 MB). Large documents are truncated rather than
+   failing the navigation outright. A virtual host mapping remains the fallback
+   if truncation proves too blunt in practice.
+
+## Known limitations
+
+- **Scroll synchronization is not implemented** (deliberately out of scope for
+  v1). The preview does not follow the editor's scroll position.
+- **ARM64 unverified** — see the verification note above.
+- The preview re-renders the whole document on each refresh. Fine at the sizes
+  tested; a very large document with Live refresh may warrant incremental
+  rendering or an automatic fallback to On-idle.
 
 ## Risks
 
