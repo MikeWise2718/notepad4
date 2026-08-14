@@ -27,4 +27,18 @@
 //! Enable localization for scheme/lexer style names.
 #define NP2_ENABLE_LOCALIZE_STYLE_NAME			1
 
+//! Enable the Markdown preview pane.
+// When enabled, a split pane rendering the current Markdown document is
+// available from the View menu. Requires the WebView2 SDK headers and,
+// at runtime, Windows 10 or later with the WebView2 Runtime installed.
+// The feature degrades quietly when either is missing.
+//
+// WebView2 cannot be linked by MinGW/GCC, so this defaults to off there.
+// See docs\webview2-markdown-preview-research.md.
+#if defined(_MSC_VER)
+#define NP2_ENABLE_MARKDOWN_PREVIEW				1
+#else
+#define NP2_ENABLE_MARKDOWN_PREVIEW				0
+#endif
+
 // scintilla\include\LaTeXInput.h defined NP2_ENABLE_LATEX_LIKE_EMOJI_INPUT

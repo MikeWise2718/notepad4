@@ -591,8 +591,30 @@
     <ClCompile Include="..\..\src\EditAutoC.cpp" />
     <ClCompile Include="..\..\src\EditEncoding.cpp" />
     <ClCompile Include="..\..\src\Helpers.cpp" />
+    <ClCompile Include="..\..\src\MarkdownPreview.cpp" />
     <ClCompile Include="..\..\src\Notepad4.cpp" />
     <ClCompile Include="..\..\src\Styles.cpp" />
+    <!-- Vendored md4c, compiled as C. Warnings disabled: this is third-party
+         code kept unmodified so it can be updated from upstream cleanly.
+         See src\md4c\README-vendored.md. -->
+    <ClCompile Include="..\..\src\md4c\md4c.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <CallingConvention>Cdecl</CallingConvention>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="..\..\src\md4c\md4c-html.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <CallingConvention>Cdecl</CallingConvention>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="..\..\src\md4c\entity.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <CallingConvention>Cdecl</CallingConvention>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
     <ClCompile Include="..\..\src\EditLexers\stlABAQUS.cpp" />
     <ClCompile Include="..\..\src\EditLexers\stlActionScript.cpp" />
     <ClCompile Include="..\..\src\EditLexers\stlAPDL.cpp" />
@@ -756,6 +778,9 @@
     <ClInclude Include="..\..\src\EditLexers/EditStyle.h" />
     <ClInclude Include="..\..\src\EditLexers/EditStyleX.h" />
     <ClInclude Include="..\..\src\Helpers.h" />
+    <ClInclude Include="..\..\src\MarkdownPreview.h" />
+    <ClInclude Include="..\..\src\md4c\md4c.h" />
+    <ClInclude Include="..\..\src\md4c\md4c-html.h" />
     <ClInclude Include="..\..\src\Notepad4.h" />
     <ClInclude Include="..\..\src\Resource.h" />
     <ClInclude Include="..\..\src\SciCall.h" />
