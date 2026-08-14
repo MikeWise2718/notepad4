@@ -125,10 +125,12 @@ enum {
 // https://www.codeproject.com/tips/1017834/how-to-send-data-from-one-process-to-another-in-cs
 #define APPM_COPYDATA				(WM_APP + 6)
 #define APPM_DROPFILES				(WM_APP + 7)	// ScintillaWin::Drop()
+#define APPM_RESTORE_MARKDOWN_PREVIEW	(WM_APP + 8)	// posted from MsgCreate()
 
 #define ID_WATCHTIMER				0xA000	// file watch timer
 #define ID_PASTEBOARDTIMER			0xA001	// paste board timer
 #define ID_AUTOSAVETIMER			0xA002	// AutoSave timer
+#define ID_MARKDOWNPREVIEWTIMER		0xA003	// Markdown preview refresh debounce
 
 enum EscFunction {
 	EscFunction_None = 0,

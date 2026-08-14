@@ -604,6 +604,18 @@ BEGIN
 			MENUITEM "Use Lar&ge Toolbar",			IDM_VIEW_USE_LARGE_TOOLBAR
 #endif
 			MENUITEM "Show Stat&usbar\tShift+F11",	IDM_VIEW_STATUSBAR
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+			MENUITEM SEPARATOR
+			MENUITEM "Markdown &Preview\tCtrl+F10",	IDM_VIEW_MARKDOWN_PREVIEW
+			POPUP "Markdown Preview &Refresh"
+			BEGIN
+				MENUITEM "&Live (as you type)",		IDM_MARKDOWN_REFRESH_LIVE
+				MENUITEM "On &Idle",				IDM_MARKDOWN_REFRESH_IDLE
+				MENUITEM "&Manual",					IDM_MARKDOWN_REFRESH_MANUAL
+				MENUITEM SEPARATOR
+				MENUITEM "Refresh &Now",			IDM_MARKDOWN_PREVIEW_REFRESH
+			END
+#endif
 			MENUITEM SEPARATOR
 			MENUITEM "&Transparent Mode\tCtrl+0",	IDM_VIEW_TRANSPARENT
 			MENUITEM "Transparent on Los&ing Focus",IDM_VIEW_TRANSPARENT_INACTIVE
@@ -966,6 +978,7 @@ BEGIN
     VK_INSERT,      IDM_EDIT_COPY,              VIRTKEY, CONTROL, NOINVERT
     VK_F1,          IDM_HELP_ABOUT,             VIRTKEY, NOINVERT
     VK_F10,         IDM_FILE_READONLY_MODE,     VIRTKEY, NOINVERT
+    VK_F10,         IDM_VIEW_MARKDOWN_PREVIEW,  VIRTKEY, CONTROL, NOINVERT
     VK_F11,         IDM_VIEW_TOGGLE_FULLSCREEN, VIRTKEY, NOINVERT
     VK_F11,         IDM_VIEW_TOOLBAR,           VIRTKEY, CONTROL, NOINVERT
     VK_F11,         IDM_VIEW_MENU,              VIRTKEY, ALT, NOINVERT
@@ -2060,6 +2073,10 @@ The ""Preview"" button will not apply any changes."
 	IDS_WRAP_SYMBOL_BEFORE_OPTIONS	"No visual indicators before wrap|Show visual indicators before wrap (near text)|Show visual indicators before wrap (near borders)"
 	IDS_WRAP_SYMBOL_AFTER_OPTIONS	"No visual indicators after wrap|Show visual indicators after wrap (near text)|Show visual indicators after wrap (near borders)|Show visual indicators after wrap (in line number margin)"
 	IDS_WRAP_MODE_OPTIONS			"No wrap|Wrap text between words|Wrap text between any characters|Wrap text on whitespace|Automatic word wrap"
+
+	IDS_MARKDOWN_PREVIEW_UNAVAILABLE	"The Markdown preview requires Windows 10 or later with the Microsoft Edge WebView2 Runtime installed.\r\n\
+\r\n\
+WebView2Loader.dll must also be present next to Notepad4.exe."
 END
 
 #if 0//NP2_ENABLE_LOCALIZE_LEXER_NAME

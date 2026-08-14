@@ -38,6 +38,7 @@
 #include "Edit.h"
 #include "Styles.h"
 #include "Dialogs.h"
+#include "MarkdownPreview.h"
 #include "resource.h"
 
 //! show code folding level and state on line number margin
@@ -195,6 +196,25 @@ static int iAutoScaleToolbar;
 static bool bShowStatusbar;
 static bool bInFullScreenMode;
 static int iFullScreenMode;
+
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+// Split position as a percentage of the client width given to the editor, so
+// the layout survives window resizing and DPI changes.
+enum {
+	MarkdownPreviewSplit_MinValue = 15,
+	MarkdownPreviewSplit_MaxValue = 85,
+	MarkdownPreviewSplit_Default = 50,
+};
+static bool bShowMarkdownPreview;
+static int iMarkdownPreviewSplit;
+int iMarkdownPreviewRefresh;		// read by MarkdownPreview.cpp
+static bool bMarkdownSplitterDragging;
+
+// Defined below alongside MsgSize(), used by the window procedure above it.
+static bool MarkdownSplitter_OnLButtonDown(HWND hwnd, int x, int y) noexcept;
+static bool MarkdownSplitter_OnMouseMove(HWND hwnd, int x, int y) noexcept;
+static void MarkdownSplitter_OnLButtonUp() noexcept;
+#endif
 
 struct WININFO {
 	int x;
@@ -1131,6 +1151,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam)
 			// call SaveSettings() when hwndToolbar is still valid
 			SaveAllSettings(true);
 			bitmapCache.Empty();
+			MarkdownPreview_Destroy();
 
 			// Remove tray icon if necessary
 			ShowNotifyIcon(hwnd, false);
@@ -1196,11 +1217,47 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam)
 		if (wParam == ID_AUTOSAVETIMER) {
 			AutoSave_DoWork(FileSaveFlag_Default);
 		}
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+		else if (wParam == ID_MARKDOWNPREVIEWTIMER) {
+			// One-shot: the debounce timer is restarted on each change.
+			KillTimer(hwnd, ID_MARKDOWNPREVIEWTIMER);
+			MarkdownPreview_Refresh();
+		}
+#endif
 		break;
 
 	case WM_SIZE:
 		MsgSize(hwnd, wParam, lParam);
 		break;
+
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+	case APPM_RESTORE_MARKDOWN_PREVIEW:
+		// bShowMarkdownPreview was loaded from the ini, but the pane itself has
+		// not been created yet. Toggle() tracks its own visibility, which is
+		// still false here, so this shows the pane rather than hiding it.
+		if (bShowMarkdownPreview) {
+			MarkdownPreview_Toggle(hwnd);
+			bShowMarkdownPreview = MarkdownPreview_IsVisible();
+			SendWMSize(hwnd);
+		}
+		break;
+
+	case WM_LBUTTONDOWN:
+		if (MarkdownSplitter_OnLButtonDown(hwnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
+			return 0;
+		}
+		break;
+
+	case WM_MOUSEMOVE:
+		if (MarkdownSplitter_OnMouseMove(hwnd, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
+			return 0;
+		}
+		break;
+
+	case WM_LBUTTONUP:
+		MarkdownSplitter_OnLButtonUp();
+		break;
+#endif
 
 	case WM_GETMINMAXINFO:
 		if (bInFullScreenMode) {
@@ -1861,6 +1918,15 @@ LRESULT MsgCreate(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 	mruFile.Init(MRU_KEY_RECENT_FILES, iMaxRecentFiles, flags);
 	mruFind.Init(MRU_KEY_RECENT_FIND, MRU_MAXITEMS, MRUFlags_QuoteValue);
 	mruReplace.Init(MRU_KEY_RECENT_REPLACE, MRU_MAXITEMS, MRUFlags_QuoteValue);
+
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+	// Restore a previously visible preview pane, but do it after startup
+	// finishes: creating the WebView2 environment here would delay the window
+	// appearing, and the document has not been loaded yet.
+	if (bShowMarkdownPreview) {
+		PostMessage(hwnd, APPM_RESTORE_MARKDOWN_PREVIEW, 0, 0);
+	}
+#endif
 	return 0;
 }
 
@@ -2071,6 +2137,97 @@ void MsgThemeChanged(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 	UpdateStatusbar();
 }
 
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+//=============================================================================
+//
+// Markdown preview splitter
+//
+// The splitter is not a window: it is the gap between the editor and the
+// preview, hit-tested on the main window. This avoids registering a window
+// class and keeps the layout change confined to MsgSize().
+//
+static int GetMarkdownSplitterWidth() noexcept {
+	return MulDiv(4, g_uCurrentDPI, USER_DEFAULT_SCREEN_DPI);
+}
+
+// Client rect of the splitter gap, or an empty rect when the preview is hidden.
+static void GetMarkdownSplitterRect(HWND hwnd, RECT *rc) noexcept {
+	SetRectEmpty(rc);
+	if (!bShowMarkdownPreview || !MarkdownPreview_IsVisible()) {
+		return;
+	}
+
+	RECT rcClient;
+	GetClientRect(hwnd, &rcClient);
+	int y = 0;
+	int cy = rcClient.bottom;
+	if (bShowToolbar) {
+		y = cyReBar + cyReBarFrame;
+		cy -= cyReBar + cyReBarFrame;
+	}
+	if (bShowStatusbar) {
+		RECT rcStatus;
+		GetWindowRect(hwndStatus, &rcStatus);
+		cy -= (rcStatus.bottom - rcStatus.top);
+	}
+
+	const int cxSplitter = GetMarkdownSplitterWidth();
+	const int cxClient = static_cast<int>(rcClient.right);
+	int cxEdit = MulDiv(cxClient - cxSplitter, iMarkdownPreviewSplit, 100);
+	cxEdit = clamp(cxEdit, 0, cxClient - cxSplitter);
+	SetRect(rc, cxEdit, y, cxEdit + cxSplitter, y + cy);
+}
+
+static bool MarkdownSplitter_OnMouseMove(HWND hwnd, int x, int y) noexcept {
+	if (bMarkdownSplitterDragging) {
+		RECT rcClient;
+		GetClientRect(hwnd, &rcClient);
+		const int cxSplitter = GetMarkdownSplitterWidth();
+		const int usable = rcClient.right - cxSplitter;
+		if (usable > 0) {
+			const int percent = MulDiv(x, 100, usable);
+			const int clamped = clamp(percent, static_cast<int>(MarkdownPreviewSplit_MinValue), static_cast<int>(MarkdownPreviewSplit_MaxValue));
+			if (clamped != iMarkdownPreviewSplit) {
+				iMarkdownPreviewSplit = clamped;
+				GetClientRect(hwnd, &rcClient);
+				MsgSize(hwnd, SIZE_RESTORED, MAKELPARAM(rcClient.right, rcClient.bottom));
+			}
+		}
+		SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+		return true;
+	}
+
+	RECT rcSplitter;
+	GetMarkdownSplitterRect(hwnd, &rcSplitter);
+	POINT pt = { x, y };
+	if (PtInRect(&rcSplitter, pt)) {
+		SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+		return true;
+	}
+	return false;
+}
+
+static bool MarkdownSplitter_OnLButtonDown(HWND hwnd, int x, int y) noexcept {
+	RECT rcSplitter;
+	GetMarkdownSplitterRect(hwnd, &rcSplitter);
+	POINT pt = { x, y };
+	if (!PtInRect(&rcSplitter, pt)) {
+		return false;
+	}
+	bMarkdownSplitterDragging = true;
+	SetCapture(hwnd);
+	SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+	return true;
+}
+
+static void MarkdownSplitter_OnLButtonUp() noexcept {
+	if (bMarkdownSplitterDragging) {
+		bMarkdownSplitterDragging = false;
+		ReleaseCapture();
+	}
+}
+#endif // NP2_ENABLE_MARKDOWN_PREVIEW
+
 //=============================================================================
 //
 // MsgSize() - Handles WM_SIZE
@@ -2115,6 +2272,24 @@ void MsgSize(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 		GetWindowRect(hwndStatus, &rc);
 		cy -= (rc.bottom - rc.top);
 	}
+
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+	if (bShowMarkdownPreview && MarkdownPreview_IsVisible()) {
+		// editor | splitter | preview
+		const int cxSplitter = GetMarkdownSplitterWidth();
+		int cxEdit = MulDiv(cx - cxSplitter, iMarkdownPreviewSplit, 100);
+		// Keep both panes usable no matter how narrow the window gets.
+		cxEdit = clamp(cxEdit, 0, cx - cxSplitter);
+		const int cxPreview = cx - cxEdit - cxSplitter;
+
+		SetWindowPos(hwndEdit, nullptr, x, y, cxEdit, cy, SWP_NOZORDER | SWP_NOACTIVATE);
+		MarkdownPreview_Resize(x + cxEdit + cxSplitter, y, cxPreview, cy);
+
+		// resize Statusbar items
+		UpdateStatusbar();
+		return;
+	}
+#endif
 
 	SetWindowPos(hwndEdit, nullptr, x, y, cx, cy, SWP_NOZORDER | SWP_NOACTIVATE);
 
@@ -2540,6 +2715,20 @@ void MsgInitMenu(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 	CheckCmd(hmenu, IDM_VIEW_USE_LARGE_TOOLBAR, iAutoScaleToolbar > USER_DEFAULT_SCREEN_DPI);
 #endif
 	CheckCmd(hmenu, IDM_VIEW_STATUSBAR, bShowStatusbar);
+
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+	// Hidden below Windows 10 or without the WebView2 runtime: the pane simply
+	// cannot work there, and a permanently greyed item invites bug reports.
+	{
+		const bool available = MarkdownPreview_IsAvailable();
+		EnableCmd(hmenu, IDM_VIEW_MARKDOWN_PREVIEW, available);
+		EnableCmd(hmenu, IDM_MARKDOWN_PREVIEW_REFRESH, available && bShowMarkdownPreview);
+		CheckCmd(hmenu, IDM_VIEW_MARKDOWN_PREVIEW, bShowMarkdownPreview);
+		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_LIVE, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Live);
+		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_IDLE, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Idle);
+		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_MANUAL, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Manual);
+	}
+#endif
 #if NP2_ENABLE_APP_LOCALIZATION_DLL
 	CheckMenuRadioItem(hmenu, IDM_LANG_USER_DEFAULT, IDM_LANG_LAST_LANGUAGE, languageMenu, MF_BYCOMMAND);
 #endif
@@ -4095,6 +4284,30 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 		SendWMSize(hwnd);
 		break;
 
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+	case IDM_VIEW_MARKDOWN_PREVIEW:
+		// Set the flag optimistically so the layout pass triggered from inside
+		// the (asynchronous) WebView2 creation callback already knows the pane
+		// is wanted, then correct it from the real state afterwards: Toggle()
+		// refuses when WebView2 is unavailable.
+		bShowMarkdownPreview = !bShowMarkdownPreview;
+		MarkdownPreview_Toggle(hwnd);
+		bShowMarkdownPreview = MarkdownPreview_IsVisible();
+		SendWMSize(hwnd);
+		break;
+
+	case IDM_MARKDOWN_PREVIEW_REFRESH:
+		MarkdownPreview_Refresh();
+		break;
+
+	case IDM_MARKDOWN_REFRESH_LIVE:
+	case IDM_MARKDOWN_REFRESH_IDLE:
+	case IDM_MARKDOWN_REFRESH_MANUAL:
+		iMarkdownPreviewRefresh = static_cast<int>(LOWORD(wParam)) - IDM_MARKDOWN_REFRESH_LIVE;
+		MarkdownPreview_Refresh();
+		break;
+#endif
+
 	case IDM_VIEW_CLEARWINPOS:
 		ClearWindowPositionHistory();
 		break;
@@ -4837,6 +5050,7 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 			++dwCurrentDocReversion;
 			UpdateStatusBarCacheLineColumn();
 			AutoSave_Start(false);
+			MarkdownPreview_ScheduleRefresh();
 			break;
 
 		case SCN_ZOOM:
@@ -5290,6 +5504,12 @@ void LoadSettings() noexcept {
 	iAutoScaleToolbar = section.GetInt(L"AutoScaleToolbar", USER_DEFAULT_SCREEN_DPI);
 	bShowStatusbar = section.GetBool(L"ShowStatusbar", true);
 
+	bShowMarkdownPreview = section.GetBool(L"ShowMarkdownPreview", false);
+	iValue = section.GetInt(L"MarkdownPreviewSplit", MarkdownPreviewSplit_Default);
+	iMarkdownPreviewSplit = clamp(iValue, static_cast<int>(MarkdownPreviewSplit_MinValue), static_cast<int>(MarkdownPreviewSplit_MaxValue));
+	iValue = section.GetInt(L"MarkdownPreviewRefresh", MarkdownPreviewRefresh_Default);
+	iMarkdownPreviewRefresh = clamp(iValue, 0, static_cast<int>(MarkdownPreviewRefresh_MaxValue));
+
 	iValue = section.GetInt(L"FullScreenMode", FullScreenMode_Default);
 	iFullScreenMode = iValue;
 	bInFullScreenMode = iValue & FullScreenMode_OnStartup;
@@ -5528,6 +5748,10 @@ void SaveSettings(bool bSaveSettingsNow) noexcept {
 	section.SetIntEx(L"AutoScaleToolbar", iAutoScaleToolbar, USER_DEFAULT_SCREEN_DPI);
 	section.SetBoolEx(L"ShowStatusbar", bShowStatusbar, true);
 	section.SetIntEx(L"FullScreenMode", iFullScreenMode, FullScreenMode_Default);
+
+	section.SetBoolEx(L"ShowMarkdownPreview", bShowMarkdownPreview, false);
+	section.SetIntEx(L"MarkdownPreviewSplit", iMarkdownPreviewSplit, MarkdownPreviewSplit_Default);
+	section.SetIntEx(L"MarkdownPreviewRefresh", iMarkdownPreviewRefresh, MarkdownPreviewRefresh_Default);
 
 	SaveIniSection(INI_SECTION_NAME_SETTINGS, pIniSectionBuf);
 	NP2HeapFree(pIniSectionBuf);
