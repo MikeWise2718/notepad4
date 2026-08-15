@@ -1,26 +1,56 @@
 @echo off
 setlocal
 
+:: Installs Notepad4.ini to the locations Notepad4 reads it from.
+::
+:: Notepad4 prefers an ini next to the executable (portable mode) and falls
+:: back to %LOCALAPPDATA%\Notepad4. Both are installed here.
+::
+:: NOTE: these are live settings files. Notepad4 rewrites them on exit with
+:: window position, zoom level, recent files and so on. Overwriting one throws
+:: that away, so any existing file is backed up first.
+
 echo Installing Notepad4 configuration...
+echo.
 
-:: Install to %LOCALAPPDATA%\Notepad4
-set "TARGET_DIR=%LOCALAPPDATA%\Notepad4"
-if not exist "%TARGET_DIR%" (
-    echo Creating %TARGET_DIR%
-    mkdir "%TARGET_DIR%"
+set "SOURCE=%~dp0Notepad4.ini"
+if not exist "%SOURCE%" (
+    echo ERROR: %SOURCE% not found.
+    exit /b 1
 )
-echo Copying Notepad4.ini to %TARGET_DIR%
-copy /Y "%~dp0Notepad4.ini" "%TARGET_DIR%\Notepad4.ini"
 
-:: Install to C:\ut
-set "UT_DIR=C:\ut"
-if not exist "%UT_DIR%" (
-    echo Creating %UT_DIR%
-    mkdir "%UT_DIR%"
+:: The portable install directory: where Notepad4.exe lives.
+::   install-config.bat            install to the defaults below
+::   install-config.bat E:\tools   install to E:\tools instead of D:\ut
+::   install-config.bat /n         dry run: show what would happen, change nothing
+set "UT_DIR=D:\ut"
+set "DRYRUN="
+if /I "%~1"=="/n" (
+    set "DRYRUN=1"
+    echo *** DRY RUN - no files will be changed ***
+    echo.
+) else (
+    if not "%~1"=="" set "UT_DIR=%~1"
 )
-echo Copying Notepad4.ini to %UT_DIR%
-copy /Y "%~dp0Notepad4.ini" "%UT_DIR%\Notepad4.ini"
+
+call :install "%LOCALAPPDATA%\Notepad4"
+call :install "%UT_DIR%"
 
 echo.
 echo Installation complete.
 endlocal
+exit /b 0
+
+:install
+set "TARGET=%~1"
+if not exist "%TARGET%" (
+    echo Creating %TARGET%
+    if not defined DRYRUN mkdir "%TARGET%"
+)
+if exist "%TARGET%\Notepad4.ini" (
+    echo Backing up existing %TARGET%\Notepad4.ini to Notepad4.ini.bak
+    if not defined DRYRUN copy /Y "%TARGET%\Notepad4.ini" "%TARGET%\Notepad4.ini.bak" >nul
+)
+echo Copying Notepad4.ini to %TARGET%
+if not defined DRYRUN copy /Y "%SOURCE%" "%TARGET%\Notepad4.ini" >nul
+exit /b 0
