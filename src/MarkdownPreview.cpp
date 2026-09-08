@@ -160,6 +160,46 @@ void AppendStyleSheet(HtmlBuffer *buffer, bool darkMode) noexcept {
 	HtmlBuffer_AppendLiteral(buffer, css);
 }
 
+// A per-page nonce is what lets the one inline script run while inline script
+// stays forbidden for everything else. It must be unpredictable: a fixed or
+// guessable value would let script inside the document being previewed opt
+// itself in. RtlGenRandom (exposed as SystemFunction036) is used directly to
+// avoid pulling in bcrypt for a 16-byte draw; it is present on every supported
+// Windows version. On failure the caller renders without Mermaid rather than
+// falling back to a weak nonce.
+bool GenerateNonce(char *out, size_t size) noexcept {
+	using PFN_RtlGenRandom = BOOLEAN (WINAPI *)(PVOID, ULONG);
+	static PFN_RtlGenRandom pfnRtlGenRandom = nullptr;
+	if (pfnRtlGenRandom == nullptr) {
+		// advapi32 is already linked and loaded; this only takes its address.
+		const HMODULE hAdvapi = GetModuleHandle(L"advapi32.dll");
+		if (hAdvapi == nullptr) {
+			return false;
+		}
+		pfnRtlGenRandom = reinterpret_cast<PFN_RtlGenRandom>(
+			reinterpret_cast<void *>(GetProcAddress(hAdvapi, "SystemFunction036")));
+		if (pfnRtlGenRandom == nullptr) {
+			return false;
+		}
+	}
+
+	BYTE bytes[16];
+	if (!pfnRtlGenRandom(bytes, sizeof(bytes))) {
+		return false;
+	}
+	// Hex rather than base64: no '+' or '/' to escape inside an attribute.
+	if (size < 2 * sizeof(bytes) + 1) {
+		return false;
+	}
+	static const char digits[] = "0123456789abcdef";
+	for (size_t i = 0; i < sizeof(bytes); i++) {
+		out[2 * i] = digits[bytes[i] >> 4];
+		out[2 * i + 1] = digits[bytes[i] & 0x0f];
+	}
+	out[2 * sizeof(bytes)] = '\0';
+	return true;
+}
+
 // Diagrams are centred on their own background. Until the script has run, a
 // mermaid block is still a <pre> full of source; hiding it via visibility
 // (not display) keeps its height, so the page does not jump when it renders.
@@ -182,9 +222,13 @@ void AppendMermaidStyle(HtmlBuffer *buffer) noexcept {
 // the whole page: a single malformed diagram otherwise aborts the batch and
 // leaves every later diagram unrendered, which is a poor experience while the
 // document is being edited live.
-void AppendMermaidScript(HtmlBuffer *buffer, bool darkMode) noexcept {
+void AppendMermaidScript(HtmlBuffer *buffer, bool darkMode, const char *nonce) noexcept {
 	HtmlBuffer_AppendLiteral(buffer, "<script src=\"" MERMAID_SCRIPT_URL "\"></script>");
-	HtmlBuffer_AppendLiteral(buffer, "<script>(function(){");
+	// The nonce is what makes this one inline block executable; without it the
+	// page's own CSP blocks it, exactly as it blocks any script in the document.
+	HtmlBuffer_AppendLiteral(buffer, "<script nonce=\"");
+	HtmlBuffer_AppendLiteral(buffer, nonce);
+	HtmlBuffer_AppendLiteral(buffer, "\">(function(){");
 	HtmlBuffer_AppendLiteral(buffer,
 		"if(typeof mermaid==='undefined'){return;}"
 		"var blocks=document.querySelectorAll('pre>code.language-mermaid');"
@@ -233,17 +277,26 @@ void AppendMermaidScript(HtmlBuffer *buffer, bool darkMode) noexcept {
 char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode, bool mermaid) noexcept {
 	HtmlBuffer buffer;
 
+	// A failed nonce draw disables Mermaid rather than weakening the policy.
+	char nonce[33];
+	if (mermaid && !GenerateNonce(nonce, sizeof(nonce))) {
+		mermaid = false;
+	}
+
 	HtmlBuffer_AppendLiteral(&buffer,
 		"<!DOCTYPE html><html><head><meta charset=\"utf-8\">");
-	// Mermaid needs to run script from the virtual host and to inject its own
-	// <style> elements; without it the page executes nothing at all. Script is
-	// never allowed inline, so document content cannot introduce any.
+	// Mermaid needs to run the bundled script from the virtual host, its own
+	// nonce'd bootstrap, and the <style> elements it injects. Inline script is
+	// allowed only for that one nonce, so script inside the document being
+	// previewed still cannot execute.
 	if (mermaid) {
 		HtmlBuffer_AppendLiteral(&buffer,
 			"<meta http-equiv=\"Content-Security-Policy\" "
 			"content=\"default-src 'none'; img-src data: https: http:; "
 			"style-src 'unsafe-inline'; font-src data:; "
-			"script-src https://notepad4.invalid;\">");
+			"script-src https://notepad4.invalid 'nonce-");
+		HtmlBuffer_AppendLiteral(&buffer, nonce);
+		HtmlBuffer_AppendLiteral(&buffer, "';\">");
 	} else {
 		HtmlBuffer_AppendLiteral(&buffer,
 			"<meta http-equiv=\"Content-Security-Policy\" "
@@ -266,7 +319,7 @@ char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode,
 	}
 
 	if (mermaid) {
-		AppendMermaidScript(&buffer, darkMode);
+		AppendMermaidScript(&buffer, darkMode, nonce);
 	}
 	HtmlBuffer_AppendLiteral(&buffer, "</body></html>");
 

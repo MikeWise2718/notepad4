@@ -259,9 +259,14 @@ Decisions worth recording:
   keyed on the file being present, not on the user setting, so toggling the
   setting needs no WebView2 teardown — it only changes whether the page emits
   the script tag. With no asset, the preview executes nothing, as before.
-- **CSP still forbids inline script.** The mermaid page adds only
-  `script-src https://notepad4.invalid`, so nothing originating in the document
-  being edited can execute.
+- **The bootstrap script carries a per-page nonce.** `script-src` lists the
+  virtual host *and* a `'nonce-...'` drawn from `RtlGenRandom` for each render.
+  Without the nonce the inline block is blocked by the page's own CSP and no
+  diagram ever renders — this was a real bug, caught only by testing the
+  generated CSP rather than the script in isolation. The nonce must stay
+  unpredictable: a fixed value would let script inside the previewed document
+  opt itself in. A failed random draw disables Mermaid instead of weakening the
+  policy. Document content still cannot execute, having no valid nonce.
 - **`securityLevel: 'antiscript'`, not `'strict'` or `'loose'`.** Real diagrams
   use `<b>` and `<br/>` in node labels, which `strict` silently discards.
   `loose` would additionally allow click handlers and arbitrary HTML from
