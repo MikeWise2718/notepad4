@@ -810,4 +810,22 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <!--
+    Web assets served to the Markdown preview over a virtual host mapped to
+    $(OutDir)res. Inputs/Outputs make this incremental: mermaid.min.js is
+    ~2.7 MB and would otherwise be recopied on every build.
+    The preview degrades gracefully when the file is absent, so a failed copy
+    is not a build error.
+  -->
+  <ItemGroup>
+    <MarkdownPreviewAsset Include="..\..\src\webview2-assets\mermaid.min.js" />
+  </ItemGroup>
+  <Target Name="CopyMarkdownPreviewAssets" AfterTargets="Build"
+          Condition="Exists('..\..\src\webview2-assets\mermaid.min.js')"
+          Inputs="@(MarkdownPreviewAsset)"
+          Outputs="@(MarkdownPreviewAsset->'$(OutDir)res\%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(MarkdownPreviewAsset)"
+          DestinationFolder="$(OutDir)res"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

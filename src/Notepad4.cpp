@@ -208,6 +208,7 @@ enum {
 static bool bShowMarkdownPreview;
 static int iMarkdownPreviewSplit;
 int iMarkdownPreviewRefresh;		// read by MarkdownPreview.cpp
+bool bMarkdownPreviewMermaid;		// read by MarkdownPreview.cpp
 static bool bMarkdownSplitterDragging;
 
 // Defined below alongside MsgSize(), used by the window procedure above it.
@@ -2727,6 +2728,10 @@ void MsgInitMenu(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_LIVE, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Live);
 		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_IDLE, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Idle);
 		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_MANUAL, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Manual);
+		// Greyed out when mermaid.min.js is not deployed beside the executable:
+		// the setting would have nothing to act on.
+		EnableCmd(hmenu, IDM_MARKDOWN_PREVIEW_MERMAID, available && MarkdownPreview_IsMermaidAvailable());
+		CheckCmd(hmenu, IDM_MARKDOWN_PREVIEW_MERMAID, bMarkdownPreviewMermaid && MarkdownPreview_IsMermaidAvailable());
 	}
 #endif
 #if NP2_ENABLE_APP_LOCALIZATION_DLL
@@ -4306,6 +4311,14 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 		iMarkdownPreviewRefresh = static_cast<int>(LOWORD(wParam)) - IDM_MARKDOWN_REFRESH_LIVE;
 		MarkdownPreview_Refresh();
 		break;
+
+	case IDM_MARKDOWN_PREVIEW_MERMAID:
+		// Only the emitted page changes; scripting is enabled at controller
+		// creation whenever the bundled script exists, so a re-render is
+		// enough and the WebView2 instance is left alone.
+		bMarkdownPreviewMermaid = !bMarkdownPreviewMermaid;
+		MarkdownPreview_Refresh();
+		break;
 #endif
 
 	case IDM_VIEW_CLEARWINPOS:
@@ -5510,6 +5523,7 @@ void LoadSettings() noexcept {
 	iMarkdownPreviewSplit = clamp(iValue, static_cast<int>(MarkdownPreviewSplit_MinValue), static_cast<int>(MarkdownPreviewSplit_MaxValue));
 	iValue = section.GetInt(L"MarkdownPreviewRefresh", MarkdownPreviewRefresh_Default);
 	iMarkdownPreviewRefresh = clamp(iValue, 0, static_cast<int>(MarkdownPreviewRefresh_MaxValue));
+	bMarkdownPreviewMermaid = section.GetBool(L"MarkdownPreviewMermaid", true);
 #endif
 
 	iValue = section.GetInt(L"FullScreenMode", FullScreenMode_Default);
@@ -5755,6 +5769,7 @@ void SaveSettings(bool bSaveSettingsNow) noexcept {
 	section.SetBoolEx(L"ShowMarkdownPreview", bShowMarkdownPreview, false);
 	section.SetIntEx(L"MarkdownPreviewSplit", iMarkdownPreviewSplit, MarkdownPreviewSplit_Default);
 	section.SetIntEx(L"MarkdownPreviewRefresh", iMarkdownPreviewRefresh, MarkdownPreviewRefresh_Default);
+	section.SetBoolEx(L"MarkdownPreviewMermaid", bMarkdownPreviewMermaid, true);
 #endif
 
 	SaveIniSection(INI_SECTION_NAME_SETTINGS, pIniSectionBuf);

@@ -29,6 +29,7 @@ Read that first — it establishes the platform constraints that shape everythin
 | 7 | Refresh-policy implementation (3 modes) | Done |
 | 8 | Dark theme CSS following editor theme | Done |
 | 9 | Build verification across x64/Win32/ARM64/MinGW | Partial — ARM64 untested |
+| 10 | Mermaid diagram rendering in fenced blocks | Done |
 
 ## Verification performed
 
@@ -234,8 +235,49 @@ These were the spec's open questions, resolved while the user was away.
    failing the navigation outright. A virtual host mapping remains the fallback
    if truncation proves too blunt in practice.
 
+## Mermaid diagrams
+
+` ```mermaid ` fenced blocks render as diagrams. md4c emits them as
+`<pre><code class="language-mermaid">`; a small inline script rewrites those to
+`<pre class="mermaid">` (using `textContent`, so md4c's HTML escaping is undone
+exactly) and renders them.
+
+**The library is bundled, not fetched.** `src/webview2-assets/mermaid.min.js`
+(v11.12.0, MIT, ~2.7 MB) is copied to `res/` beside the executable by an MSBuild
+target and mapped into the page via `SetVirtualHostNameToFolderMapping` on
+`ICoreWebView2_3`. A CDN would mean a network request every time a Markdown file
+is opened, no offline use, and disclosing editing activity to a third party.
+`NavigateToString()` gives the document an opaque origin that cannot reference
+local files by path, so the virtual host is what makes a local script reachable
+at all. The host is `notepad4.invalid` — the `.invalid` TLD is reserved by
+RFC 2606 and can never resolve, so a mapping failure degrades to a failed load
+rather than an outbound request.
+
+Decisions worth recording:
+
+- **Scripting is enabled only when the asset exists.** `put_IsScriptEnabled` is
+  keyed on the file being present, not on the user setting, so toggling the
+  setting needs no WebView2 teardown — it only changes whether the page emits
+  the script tag. With no asset, the preview executes nothing, as before.
+- **CSP still forbids inline script.** The mermaid page adds only
+  `script-src https://notepad4.invalid`, so nothing originating in the document
+  being edited can execute.
+- **`securityLevel: 'antiscript'`, not `'strict'` or `'loose'`.** Real diagrams
+  use `<b>` and `<br/>` in node labels, which `strict` silently discards.
+  `loose` would additionally allow click handlers and arbitrary HTML from
+  whatever file happens to be open.
+- **Diagrams render one at a time,** each in its own `try`/`catch`. A single
+  bad diagram in a batch `mermaid.run()` aborts the whole run and leaves every
+  later diagram blank — a poor experience while typing, which is exactly when
+  a diagram is malformed. Verified: with a broken diagram in the middle, the
+  ones before and after it still render.
+- **`suppressErrorRendering: true`,** replacing mermaid's large "syntax error"
+  bomb graphic with a compact inline message that keeps the source visible.
+
 ## Known limitations
 
+- **Mermaid needs `res/mermaid.min.js` beside the executable.** Deploying only
+  the `.exe` leaves diagrams as plain code blocks and greys out the menu item.
 - **Scroll synchronization is not implemented** (deliberately out of scope for
   v1). The preview does not follow the editor's scroll position.
 - **ARM64 unverified** — see the verification note above.

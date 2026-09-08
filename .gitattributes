@@ -3,3 +3,7 @@
 *.sh	text eol=lf
 *.bat	text eol=crlf
 *.ini	text working-tree-encoding=UTF-16LE-BOM eol=CRLF
+
+# Vendored web assets: kept byte-identical to upstream so the recorded
+# SHA-256 in src/webview2-assets/README-vendored.md stays verifiable.
+src/webview2-assets/mermaid.min.js	-text

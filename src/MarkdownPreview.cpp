@@ -44,6 +44,13 @@ extern "C" int __cdecl md_html(const MD_CHAR *input, MD_SIZE input_size,
 
 extern HWND hwndEdit;
 extern int iMarkdownPreviewRefresh;
+extern bool bMarkdownPreviewMermaid;
+
+// Virtual host the preview page loads its bundled assets from. The .invalid
+// TLD is reserved by RFC 2606 and can never resolve on the real network, so a
+// mapping failure degrades to a failed load rather than an outbound request.
+#define MERMAID_VIRTUAL_HOST	L"notepad4.invalid"
+#define MERMAID_SCRIPT_URL		"https://notepad4.invalid/mermaid.min.js"
 
 namespace {
 
@@ -153,16 +160,99 @@ void AppendStyleSheet(HtmlBuffer *buffer, bool darkMode) noexcept {
 	HtmlBuffer_AppendLiteral(buffer, css);
 }
 
+// Diagrams are centred on their own background. Until the script has run, a
+// mermaid block is still a <pre> full of source; hiding it via visibility
+// (not display) keeps its height, so the page does not jump when it renders.
+void AppendMermaidStyle(HtmlBuffer *buffer) noexcept {
+	HtmlBuffer_AppendLiteral(buffer,
+		"<style>"
+		"pre.mermaid{background:none;padding:0;text-align:center;visibility:hidden;}"
+		"pre.mermaid[data-processed]{visibility:visible;}"
+		"pre.mermaid svg{max-width:100%;height:auto;}"
+		".mermaid-error{border-left:4px solid #d73a49;padding:.5em 1em;margin:0 0 16px;"
+		"font-family:Consolas,'Courier New',monospace;font-size:85%;white-space:pre-wrap;}"
+		"</style>");
+}
+
+// md4c renders a ```mermaid fence as <pre><code class="language-mermaid">.
+// Mermaid expects <pre class="mermaid"> holding the raw diagram source, so the
+// blocks are rewritten before mermaid.run() is called.
+//
+// Diagrams are rendered one at a time rather than by a bare mermaid.run() over
+// the whole page: a single malformed diagram otherwise aborts the batch and
+// leaves every later diagram unrendered, which is a poor experience while the
+// document is being edited live.
+void AppendMermaidScript(HtmlBuffer *buffer, bool darkMode) noexcept {
+	HtmlBuffer_AppendLiteral(buffer, "<script src=\"" MERMAID_SCRIPT_URL "\"></script>");
+	HtmlBuffer_AppendLiteral(buffer, "<script>(function(){");
+	HtmlBuffer_AppendLiteral(buffer,
+		"if(typeof mermaid==='undefined'){return;}"
+		"var blocks=document.querySelectorAll('pre>code.language-mermaid');"
+		"if(blocks.length===0){return;}"
+		"var nodes=[];"
+		"for(var i=0;i<blocks.length;i++){"
+			"var pre=blocks[i].parentNode;"
+			// textContent, not innerHTML: md4c has already escaped the source,
+			// and mermaid needs it back in its original form.
+			"pre.textContent=blocks[i].textContent;"
+			"pre.className='mermaid';"
+			"nodes.push(pre);"
+		"}");
+	// antiscript, not strict: labels in real documents use <b> and <br/> for
+	// formatting, which strict discards. antiscript keeps those while still
+	// removing script. Not 'loose', which would also allow click handlers and
+	// arbitrary HTML from whatever file happens to be open.
+	//
+	// suppressErrorRendering stops mermaid replacing a failed diagram with its
+	// own "syntax error" bomb graphic: the message added below is more precise
+	// and far less intrusive while a diagram is being typed.
+	HtmlBuffer_AppendLiteral(buffer, darkMode
+		? "mermaid.initialize({startOnLoad:false,theme:'dark',securityLevel:'antiscript',suppressErrorRendering:true});"
+		: "mermaid.initialize({startOnLoad:false,theme:'default',securityLevel:'antiscript',suppressErrorRendering:true});");
+	HtmlBuffer_AppendLiteral(buffer,
+		"(async function(){"
+			"for(var i=0;i<nodes.length;i++){"
+				"try{"
+					"await mermaid.run({nodes:[nodes[i]]});"
+				"}catch(e){"
+					// Show the failure in place, keeping the source visible so
+					// the diagram being typed can be corrected.
+					"var msg=document.createElement('pre');"
+					"msg.className='mermaid-error';"
+					"msg.textContent='Mermaid: '+(e&&e.message?e.message:e);"
+					"nodes[i].parentNode.insertBefore(msg,nodes[i]);"
+					"nodes[i].style.visibility='visible';"
+				"}"
+			"}"
+		"})();");
+	HtmlBuffer_AppendLiteral(buffer, "})();</script>");
+}
+
 } // namespace
 
-char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode) noexcept {
+char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode, bool mermaid) noexcept {
 	HtmlBuffer buffer;
 
 	HtmlBuffer_AppendLiteral(&buffer,
-		"<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-		"<meta http-equiv=\"Content-Security-Policy\" "
-		"content=\"default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline';\">");
+		"<!DOCTYPE html><html><head><meta charset=\"utf-8\">");
+	// Mermaid needs to run script from the virtual host and to inject its own
+	// <style> elements; without it the page executes nothing at all. Script is
+	// never allowed inline, so document content cannot introduce any.
+	if (mermaid) {
+		HtmlBuffer_AppendLiteral(&buffer,
+			"<meta http-equiv=\"Content-Security-Policy\" "
+			"content=\"default-src 'none'; img-src data: https: http:; "
+			"style-src 'unsafe-inline'; font-src data:; "
+			"script-src https://notepad4.invalid;\">");
+	} else {
+		HtmlBuffer_AppendLiteral(&buffer,
+			"<meta http-equiv=\"Content-Security-Policy\" "
+			"content=\"default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline';\">");
+	}
 	AppendStyleSheet(&buffer, darkMode);
+	if (mermaid) {
+		AppendMermaidStyle(&buffer);
+	}
 	HtmlBuffer_AppendLiteral(&buffer, "</head><body>");
 
 	if (length != 0 && markdown != nullptr) {
@@ -175,6 +265,9 @@ char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode)
 		}
 	}
 
+	if (mermaid) {
+		AppendMermaidScript(&buffer, darkMode);
+	}
 	HtmlBuffer_AppendLiteral(&buffer, "</body></html>");
 
 	if (buffer.failed) {
@@ -190,6 +283,9 @@ char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode)
 // Returns a NP2HeapAlloc()'d UTF-8 HTML document, or nullptr.
 namespace {
 
+// Defined below, next to the other path helpers.
+bool GetAssetFolder(LPWSTR path, DWORD cch) noexcept;
+
 char *RenderCurrentDocument() noexcept {
 	const Sci_Position docLength = SciCall_GetLength();
 	if (docLength < 0) {
@@ -200,9 +296,11 @@ char *RenderCurrentDocument() noexcept {
 	COLORREF fore;
 	GetEditorColors(&back, &fore);
 	const bool darkMode = IsDarkColor(back);
+	// Requested by the user and actually present on disk.
+	const bool mermaid = bMarkdownPreviewMermaid && MarkdownPreview_IsMermaidAvailable();
 
 	if (length == 0) {
-		return MarkdownPreview_ToHtml(nullptr, 0, darkMode);
+		return MarkdownPreview_ToHtml(nullptr, 0, darkMode, mermaid);
 	}
 
 	char *pchText = static_cast<char *>(NP2HeapAlloc(length + 1));
@@ -211,7 +309,7 @@ char *RenderCurrentDocument() noexcept {
 	}
 	SciCall_GetText(length, pchText);
 
-	char *html = MarkdownPreview_ToHtml(pchText, length, darkMode);
+	char *html = MarkdownPreview_ToHtml(pchText, length, darkMode, mermaid);
 	NP2HeapFree(pchText);
 	return html;
 }
@@ -292,16 +390,38 @@ public:
 		controller->get_CoreWebView2(&g_preview.webview);
 
 		if (g_preview.webview != nullptr) {
+			// Script runs only to render Mermaid diagrams, and only from the
+			// bundled file: the page's CSP forbids inline script entirely, so
+			// nothing originating in the document itself can execute. When the
+			// asset is missing there is nothing to run and script stays off.
+			const bool mermaid = MarkdownPreview_IsMermaidAvailable();
+
 			ICoreWebView2Settings *settings = nullptr;
 			if (SUCCEEDED(g_preview.webview->get_Settings(&settings)) && settings != nullptr) {
 				// The preview renders local content only: no devtools, no
-				// context menu, no status bar, and script is not needed.
-				settings->put_IsScriptEnabled(FALSE);
+				// context menu, no status bar.
+				settings->put_IsScriptEnabled(mermaid ? TRUE : FALSE);
 				settings->put_AreDefaultContextMenusEnabled(FALSE);
 				settings->put_AreDevToolsEnabled(FALSE);
 				settings->put_IsStatusBarEnabled(FALSE);
 				settings->put_IsZoomControlEnabled(TRUE);
 				settings->Release();
+			}
+
+			// Map the asset folder to a virtual host so the page can load
+			// mermaid.min.js. NavigateToString() gives the document an opaque
+			// origin that cannot reference local files by path, so a mapped
+			// host is the only way to serve a bundled script to it.
+			WCHAR assets[MAX_PATH];
+			if (mermaid && GetAssetFolder(assets, COUNTOF(assets))) {
+				ICoreWebView2_3 *webview3 = nullptr;
+				if (SUCCEEDED(g_preview.webview->QueryInterface(IID_PPV_ARGS(&webview3))) && webview3 != nullptr) {
+					// DenyCors: the script is fetched as a plain <script> tag;
+					// nothing needs cross-origin read access to the folder.
+					webview3->SetVirtualHostNameToFolderMapping(MERMAID_VIRTUAL_HOST, assets,
+						COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS);
+					webview3->Release();
+				}
 			}
 		}
 
@@ -399,6 +519,46 @@ bool GetUserDataFolder(LPWSTR path, DWORD cch) noexcept {
 	SHCreateDirectoryEx(nullptr, path, nullptr);
 	return true;
 }
+
+// Directory holding the bundled web assets: "res" beside the executable.
+// Returns false if the path does not fit or the folder is absent.
+bool GetAssetFolder(LPWSTR path, DWORD cch) noexcept {
+	if (cch < MAX_PATH) {
+		return false;
+	}
+	const DWORD length = GetModuleFileName(nullptr, path, cch);
+	if (length == 0 || length >= cch) {
+		return false;
+	}
+	LPWSTR name = PathFindFileName(path);
+	if (name == nullptr) {
+		return false;
+	}
+	lstrcpy(name, L"res");
+	const DWORD attr = GetFileAttributes(path);
+	return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+} // namespace
+
+bool MarkdownPreview_IsMermaidAvailable() noexcept {
+	// Cached: this runs on every render, and the file cannot appear or vanish
+	// mid-session in any case that matters.
+	static int cached = -1;
+	if (cached < 0) {
+		WCHAR path[MAX_PATH];
+		cached = 0;
+		if (GetAssetFolder(path, COUNTOF(path)) && PathAppend(path, L"mermaid.min.js")) {
+			const DWORD attr = GetFileAttributes(path);
+			if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+				cached = 1;
+			}
+		}
+	}
+	return cached > 0;
+}
+
+namespace {
 
 HMODULE LoadWebView2Loader() noexcept {
 	if (g_preview.hLoader != nullptr) {

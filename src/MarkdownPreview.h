@@ -25,7 +25,16 @@ enum MarkdownPreviewRefresh {
 // Returns a NP2HeapAlloc()'d buffer the caller must NP2HeapFree(), or nullptr
 // on failure. Available regardless of WebView2 support so it can be tested
 // independently of the pane.
-char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode) noexcept;
+//
+// mermaid enables diagram rendering for ```mermaid fenced blocks. It only
+// affects the generated page; whether the script can actually run also
+// depends on MarkdownPreview_IsMermaidAvailable().
+char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode, bool mermaid) noexcept;
+
+// True when mermaid.min.js was found next to the executable. The setting can
+// be on while this is false (a stripped-down deployment); diagrams then fall
+// back to showing their source as a plain code block.
+bool MarkdownPreview_IsMermaidAvailable() noexcept;
 
 // True when the pane can actually be shown: Windows 10 or later, the WebView2
 // loader is present, and initialization has not previously failed.
@@ -54,6 +63,7 @@ void MarkdownPreview_Destroy() noexcept;
 #else
 
 #define MarkdownPreview_IsAvailable()			false
+#define MarkdownPreview_IsMermaidAvailable()	false
 #define MarkdownPreview_IsVisible()				false
 #define MarkdownPreview_Toggle(hwndParent)		((void)0)
 #define MarkdownPreview_Resize(x, y, cx, cy)	((void)0)
