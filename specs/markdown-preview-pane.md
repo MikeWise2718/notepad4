@@ -29,7 +29,8 @@ Read that first — it establishes the platform constraints that shape everythin
 | 7 | Refresh-policy implementation (3 modes) | Done |
 | 8 | Dark theme CSS following editor theme | Done |
 | 9 | Build verification across x64/Win32/ARM64/MinGW | Partial — ARM64 untested |
-| 10 | Mermaid diagram rendering in fenced blocks | Done |
+| 10 | Mermaid diagram rendering in fenced blocks | **Not working** -- see below |
+| 11 | Preview restricted to Markdown documents | Done |
 
 ## Verification performed
 
@@ -279,10 +280,60 @@ Decisions worth recording:
 - **`suppressErrorRendering: true`,** replacing mermaid's large "syntax error"
   bomb graphic with a compact inline message that keeps the source visible.
 
+## Mermaid: rendering does not work in the app (unresolved)
+
+**Status: the diagram never becomes visible in the preview pane.** This was
+previously recorded here as working. That was wrong: the verification behind
+that claim was a standalone browser page plus a screenshot that was misread.
+Rebuilding the commit that made the claim and testing it directly shows the
+same blank result, so this has never worked in Notepad4.
+
+Everything except the final display is confirmed working, by a diagnostic built
+into the generated page and read on screen:
+
+| Checked in the running app | Result |
+|---|---|
+| `mermaid.min.js` loads from the virtual host | yes -- `typeof mermaid === 'object'` |
+| Inline bootstrap script runs (CSP nonce) | yes |
+| Blocks found and rewritten to `pre.mermaid` | yes, `n=1` |
+| `mermaid.run()` outcome | resolves, no throw |
+| SVG created and attached | yes -- `svg=1`, `inDoc=true`, `data-processed=true` |
+| SVG geometry | `w=248 h=94`, `display=inline`, `visibility=visible` |
+
+So a correctly sized, visible SVG is attached to the document and still does not
+appear. Plain Markdown in the same pane renders normally.
+
+Ruled out by direct test, each having looked convincing first:
+
+- **Not the markdown, and not a BOM.** The identical document renders correctly
+  in a browser through the same script; a BOM-free file fails identically.
+- **Not `suppressErrorRendering`.** Suspected of silently removing the failed
+  node; a browser test shows it still throws and leaves the node in place.
+- **Not the opaque origin from `NavigateToString`.** The library really does
+  load from the mapped virtual host.
+- **Not the `visibility:hidden` / `data-processed` dance**, `max-width` without
+  a width, or `pre { overflow:auto }` clipping. Each was tried as a fix; none
+  changed the outcome. Those edits were reverted rather than committed, since
+  none was verified.
+
+**Where to start next time.** The remaining suspects are in how WebView2 paints
+this specific SVG -- compositing or rasterization of inline SVG under
+`NavigateToString`, rather than anything in the DOM. The cheapest next probes:
+render the SVG to a data: URI `<img>` and see whether that paints; try a
+trivial hand-written inline `<svg><rect/></svg>` in the preview page to find out
+whether *any* inline SVG paints there; and check whether a WebView2 hardware/
+compositing setting changes it.
+
+**Do not trust a browser-based test for this feature.** Every browser test
+passed while the app stayed blank. The only meaningful verification is a
+screenshot of the real preview pane.
+
 ## Known limitations
 
+- **Mermaid diagrams do not render** -- see the section above. The menu item
+  and setting work; the diagram never appears.
 - **Mermaid needs `res/mermaid.min.js` beside the executable.** Deploying only
-  the `.exe` leaves diagrams as plain code blocks and greys out the menu item.
+  the `.exe` greys out the menu item.
 - **Scroll synchronization is not implemented** (deliberately out of scope for
   v1). The preview does not follow the editor's scroll position.
 - **ARM64 unverified** — see the verification note above.
