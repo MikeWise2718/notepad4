@@ -215,6 +215,8 @@ static bool bMarkdownSplitterDragging;
 static bool MarkdownSplitter_OnLButtonDown(HWND hwnd, int x, int y) noexcept;
 static bool MarkdownSplitter_OnMouseMove(HWND hwnd, int x, int y) noexcept;
 static void MarkdownSplitter_OnLButtonUp() noexcept;
+static bool IsMarkdownDocument() noexcept;
+static void UpdateMarkdownPreviewForDocument(HWND hwnd) noexcept;
 #endif
 
 struct WININFO {
@@ -1233,14 +1235,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam)
 
 #if NP2_ENABLE_MARKDOWN_PREVIEW
 	case APPM_RESTORE_MARKDOWN_PREVIEW:
-		// bShowMarkdownPreview was loaded from the ini, but the pane itself has
-		// not been created yet. Toggle() tracks its own visibility, which is
-		// still false here, so this shows the pane rather than hiding it.
-		if (bShowMarkdownPreview) {
-			MarkdownPreview_Toggle(hwnd);
-			bShowMarkdownPreview = MarkdownPreview_IsVisible();
-			SendWMSize(hwnd);
-		}
+		// Posted from MsgCreate() and delivered once the message loop starts,
+		// which is after any command-line file has loaded. FileLoad() has
+		// therefore already matched the pane to the document; all this needs to
+		// cover is the empty-startup case (no file argument), where no load
+		// ever runs. Doing a plain Toggle() here would undo FileLoad()'s work
+		// and leave the pane closed on a .md opened from the command line.
+		UpdateMarkdownPreviewForDocument(hwnd);
 		break;
 
 	case WM_LBUTTONDOWN:
@@ -2151,6 +2152,33 @@ static int GetMarkdownSplitterWidth() noexcept {
 	return MulDiv(4, g_uCurrentDPI, USER_DEFAULT_SCREEN_DPI);
 }
 
+// The preview only makes sense for Markdown, so bShowMarkdownPreview means
+// "show it when viewing Markdown" rather than "show it always". Without this
+// the setting persists across sessions and the pane reappears for every file
+// opened afterwards, .env and source files included.
+//
+// All three Markdown menu variants (GitHub, GitLab, Pandoc) share the single
+// NP2LEX_MARKDOWN lexer, so one test covers every flavor.
+static bool IsMarkdownDocument() noexcept {
+	return pLexCurrent != nullptr && pLexCurrent->rid == NP2LEX_MARKDOWN;
+}
+
+// Show or hide the pane to match the current document type, called whenever
+// the lexer changes. bShowMarkdownPreview is deliberately left alone: it
+// records what the user asked for, so switching to a .env file hides the pane
+// without forgetting that it should come back for the next Markdown file.
+static void UpdateMarkdownPreviewForDocument(HWND hwnd) noexcept {
+	if (!MarkdownPreview_IsAvailable()) {
+		return;
+	}
+	const bool wanted = bShowMarkdownPreview && IsMarkdownDocument();
+	if (wanted == MarkdownPreview_IsVisible()) {
+		return;
+	}
+	MarkdownPreview_Toggle(hwnd);
+	SendWMSize(hwnd);
+}
+
 // Client rect of the splitter gap, or an empty rect when the preview is hidden.
 static void GetMarkdownSplitterRect(HWND hwnd, RECT *rc) noexcept {
 	SetRectEmpty(rc);
@@ -2722,9 +2750,13 @@ void MsgInitMenu(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 	// cannot work there, and a permanently greyed item invites bug reports.
 	{
 		const bool available = MarkdownPreview_IsAvailable();
-		EnableCmd(hmenu, IDM_VIEW_MARKDOWN_PREVIEW, available);
-		EnableCmd(hmenu, IDM_MARKDOWN_PREVIEW_REFRESH, available && bShowMarkdownPreview);
-		CheckCmd(hmenu, IDM_VIEW_MARKDOWN_PREVIEW, bShowMarkdownPreview);
+		// Only actionable on a Markdown document: the pane has nothing to
+		// render otherwise, so the item greys out rather than appearing to
+		// work and doing nothing.
+		const bool markdown = IsMarkdownDocument();
+		EnableCmd(hmenu, IDM_VIEW_MARKDOWN_PREVIEW, available && markdown);
+		EnableCmd(hmenu, IDM_MARKDOWN_PREVIEW_REFRESH, available && markdown && bShowMarkdownPreview);
+		CheckCmd(hmenu, IDM_VIEW_MARKDOWN_PREVIEW, bShowMarkdownPreview && markdown);
 		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_LIVE, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Live);
 		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_IDLE, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Idle);
 		CheckCmd(hmenu, IDM_MARKDOWN_REFRESH_MANUAL, iMarkdownPreviewRefresh == MarkdownPreviewRefresh_Manual);
@@ -4296,6 +4328,12 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 		// is wanted, then correct it from the real state afterwards: Toggle()
 		// refuses when WebView2 is unavailable.
 		bShowMarkdownPreview = !bShowMarkdownPreview;
+		if (bShowMarkdownPreview && !IsMarkdownDocument()) {
+			// Remember the request but do not open the pane on a non-Markdown
+			// document; it opens by itself once one is loaded.
+			SendWMSize(hwnd);
+			break;
+		}
 		MarkdownPreview_Toggle(hwnd);
 		bShowMarkdownPreview = MarkdownPreview_IsVisible();
 		SendWMSize(hwnd);
@@ -4810,6 +4848,10 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 	default: {
 		if (LOWORD(wParam) >= IDM_LEXER_TEXTFILE && LOWORD(wParam) < IDM_LEXER_LEXER_COUNT) {
 			Style_SetLexerByLangIndex(LOWORD(wParam));
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+			// Choosing a scheme by hand changes the document type too.
+			UpdateMarkdownPreviewForDocument(hwnd);
+#endif
 			break;
 		}
 
@@ -7012,6 +7054,11 @@ bool FileLoad(FileLoadFlag loadFlag, LPCWSTR lpszFile) {
 			iFileWatchingMode = FileWatchingMode_None;
 		}
 		InstallFileWatching(true);
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+		// A new document resets to the default lexer, so the pane hides here
+		// as well. This path returns early and misses the hook below.
+		UpdateMarkdownPreviewForDocument(hwndMain);
+#endif
 		return true;
 	}
 
@@ -7179,6 +7226,12 @@ bool FileLoad(FileLoadFlag loadFlag, LPCWSTR lpszFile) {
 		//DisableDelayedStatusBarRedraw(); // already set in MsgSize()
 		UpdateStatusbar();
 		UpdateWindowTitle();
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+		// The lexer is settled by this point, so the preview can follow the
+		// document type. Placed before the early returns below so it runs for
+		// binary and inconsistent-line-ending files too.
+		UpdateMarkdownPreviewForDocument(hwndMain);
+#endif
 		// Show warning: Unicode file loaded as ANSI
 		if (status.bUnicodeErr) {
 			MsgBoxWarn(MB_OK, IDS_ERR_UNICODE);
