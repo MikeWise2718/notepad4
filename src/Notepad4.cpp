@@ -39,6 +39,7 @@
 #include "Styles.h"
 #include "Dialogs.h"
 #include "MarkdownPreview.h"
+#include "ForkVersion.h"
 #include "resource.h"
 
 //! show code folding level and state on line number margin
@@ -1716,6 +1717,8 @@ void UpdateWindowTitle() noexcept {
 
 	lstrcat(szTitle, L" - ");
 	lstrcat(szTitle, szAppName);
+	// Fork version, so it is obvious at a glance which build is running.
+	lstrcat(szTitle, L" (" NP2_FORK_VERSION_SHORT L")");
 
 	SetWindowText(hwndMain, szTitle);
 }

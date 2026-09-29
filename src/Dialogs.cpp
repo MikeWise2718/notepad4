@@ -37,6 +37,7 @@
 #include "Dialogs.h"
 #include "resource.h"
 #include "Version.h"
+#include "ForkVersion.h"
 
 extern HWND		hwndMain;
 extern DWORD	dwLastIOError;
@@ -171,6 +172,9 @@ void OpenHelpLink(HWND hwnd, int cmd) noexcept {
 	case IDC_SCI_PAGE_LINK:
 		link = VERSION_SCIPAGE_DISPLAY;
 		break;
+	case IDC_FORK_PAGE_LINK:
+		link = NP2_FORK_PAGE_URL;
+		break;
 	case IDC_NEW_PAGE_LINK:
 	case IDM_HELP_PROJECT_HOME:
 		link = VERSION_NEWPAGE_DISPLAY;
@@ -278,6 +282,13 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam
 		wsprintf(wch, L"<A>%s</A>", VERSION_SCIPAGE_DISPLAY);
 		SetDlgItemText(hwnd, IDC_SCI_PAGE_LINK, wch);
 
+		// Fork section: which fork build this is, and what it adds.
+		wsprintf(wch, L"Fork: %s", NP2_FORK_VERSION_SHORT);
+		SetDlgItemText(hwnd, IDC_FORK_VERSION, wch);
+		SetDlgItemText(hwnd, IDC_FORK_CHANGES, NP2_FORK_CHANGES);
+		wsprintf(wch, L"<A>%s</A>", NP2_FORK_PAGE_DISPLAY);
+		SetDlgItemText(hwnd, IDC_FORK_PAGE_LINK, wch);
+
 		DarkMode_InitDialog(hwnd);
 	}
 	return TRUE;
@@ -313,8 +324,8 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwnd, UINT umsg, WPARAM wParam, LPARAM lParam
 				const int iEncoding = Encoding_GetIndex(mEncoding[CPI_DEFAULT].uCodePage);
 				Encoding_GetLabel(iEncoding);
 				GetDlgItemText(hwnd, IDC_BUILD_INFO, wch, COUNTOF(wch));
-				wsprintf(tch, L"%s\n%s\nEncoding: %s, %s\nScheme: %s, %s\nSystem: %u.%u.%u %s %s\n",
-					VERSION_FILEVERSION_LONG, wch,
+				wsprintf(tch, L"%s\nFork: %s\n%s\nEncoding: %s, %s\nScheme: %s, %s\nSystem: %u.%u.%u %s %s\n",
+					VERSION_FILEVERSION_LONG, NP2_FORK_VERSION_SHORT, wch,
 					mEncoding[iCurrentEncoding].wchLabel, mEncoding[iEncoding].wchLabel,
 					PathFindExtension(szCurFile), pLexCurrent->pszName,
 					version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber,

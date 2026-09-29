@@ -131,24 +131,24 @@
   <PropertyGroup>
     <LinkIncremental Condition="$(Configuration.EndsWith('Debug'))">true</LinkIncremental>
     <LinkIncremental Condition="$(Configuration.EndsWith('Release'))">false</LinkIncremental>
-    <OutDir Condition="!$(Configuration.StartsWith('AVX'))">$(SolutionDir)..\bin\$(Configuration)\$(Platform)\</OutDir>
-    <IntDir Condition="!$(Configuration.StartsWith('AVX'))">$(SolutionDir)..\bin\$(Configuration)\$(Platform)\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2Release|x64'">$(SolutionDir)..\bin\Release\AVX2\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2Release|x64'">$(SolutionDir)..\bin\Release\AVX2\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMRelease|x64'">$(SolutionDir)..\bin\LLVMRelease\AVX2\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMRelease|x64'">$(SolutionDir)..\bin\LLVMRelease\AVX2\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2Debug|x64'">$(SolutionDir)..\bin\Debug\AVX2\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2Debug|x64'">$(SolutionDir)..\bin\Debug\AVX2\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMDebug|x64'">$(SolutionDir)..\bin\LLVMDebug\AVX2\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMDebug|x64'">$(SolutionDir)..\bin\LLVMDebug\AVX2\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512Release|x64'">$(SolutionDir)..\bin\Release\AVX512\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512Release|x64'">$(SolutionDir)..\bin\Release\AVX512\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512Debug|x64'">$(SolutionDir)..\bin\Debug\AVX512\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512Debug|x64'">$(SolutionDir)..\bin\Debug\AVX512\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMRelease|x64'">$(SolutionDir)..\bin\LLVMRelease\AVX512\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMRelease|x64'">$(SolutionDir)..\bin\LLVMRelease\AVX512\obj\$(ProjectName)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMDebug|x64'">$(SolutionDir)..\bin\LLVMDebug\AVX512\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMDebug|x64'">$(SolutionDir)..\bin\LLVMDebug\AVX512\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="!$(Configuration.StartsWith('AVX'))">$(MSBuildProjectDirectory)\..\bin\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir Condition="!$(Configuration.StartsWith('AVX'))">$(MSBuildProjectDirectory)\..\bin\$(Configuration)\$(Platform)\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2Release|x64'">$(MSBuildProjectDirectory)\..\bin\Release\AVX2\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2Release|x64'">$(MSBuildProjectDirectory)\..\bin\Release\AVX2\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMRelease|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMRelease\AVX2\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMRelease|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMRelease\AVX2\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2Debug|x64'">$(MSBuildProjectDirectory)\..\bin\Debug\AVX2\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2Debug|x64'">$(MSBuildProjectDirectory)\..\bin\Debug\AVX2\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMDebug|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMDebug\AVX2\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX2LLVMDebug|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMDebug\AVX2\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512Release|x64'">$(MSBuildProjectDirectory)\..\bin\Release\AVX512\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512Release|x64'">$(MSBuildProjectDirectory)\..\bin\Release\AVX512\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512Debug|x64'">$(MSBuildProjectDirectory)\..\bin\Debug\AVX512\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512Debug|x64'">$(MSBuildProjectDirectory)\..\bin\Debug\AVX512\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMRelease|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMRelease\AVX512\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMRelease|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMRelease\AVX512\obj\$(ProjectName)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMDebug|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMDebug\AVX512\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='AVX512LLVMDebug|x64'">$(MSBuildProjectDirectory)\..\bin\LLVMDebug\AVX512\obj\$(ProjectName)\</IntDir>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <PropertyGroup Condition="$(Configuration.EndsWith('Release'))">
@@ -785,6 +785,7 @@
     <ClInclude Include="..\..\src\Resource.h" />
     <ClInclude Include="..\..\src\SciCall.h" />
     <ClInclude Include="..\..\src\Styles.h" />
+    <ClInclude Include="..\..\src\ForkVersion.h" />
     <ClInclude Include="..\..\src\Version.h" />
     <ClInclude Include="..\..\src\VersionRev.h" />
   </ItemGroup>
@@ -820,6 +821,31 @@
   <ItemGroup>
     <MarkdownPreviewAsset Include="..\..\src\webview2-assets\mermaid.min.js" />
   </ItemGroup>
+  <!--
+    Stamp src/VersionRev.h from the current git checkout before compiling.
+
+    version.sh is upstream's generator, but nothing invoked it, so the header
+    sat stale: builds reported a revision and commit hash from whenever it was
+    last run by hand, which made "which build is this?" unanswerable. Running
+    it here keeps the stamp honest without anyone remembering to.
+
+    Fail-soft on purpose: no git-bash, no git, or a source tarball must still
+    build. version.sh leaves an existing header alone when nothing changed, so
+    this does not force a rebuild on every invocation.
+  -->
+  <Target Name="StampVersionRev" BeforeTargets="ClCompile">
+    <PropertyGroup>
+      <GitBashPath Condition="'$(GitBashPath)' == '' And Exists('$(ProgramW6432)\Git\bin\bash.exe')">$(ProgramW6432)\Git\bin\bash.exe</GitBashPath>
+      <GitBashPath Condition="'$(GitBashPath)' == '' And Exists('$(ProgramFiles)\Git\bin\bash.exe')">$(ProgramFiles)\Git\bin\bash.exe</GitBashPath>
+    </PropertyGroup>
+    <Exec Command="&quot;$(GitBashPath)&quot; ./version.sh"
+          WorkingDirectory="$(MSBuildProjectDirectory)\..\.."
+          Condition="'$(GitBashPath)' != '' And Exists('$(MSBuildProjectDirectory)\..\..\version.sh')"
+          ContinueOnError="true" />
+    <Warning Text="VersionRev.h not stamped: git-bash not found, version info may be stale."
+             Condition="'$(GitBashPath)' == ''" />
+  </Target>
+
   <Target Name="CopyMarkdownPreviewAssets" AfterTargets="Build"
           Condition="Exists('..\..\src\webview2-assets\mermaid.min.js')"
           Inputs="@(MarkdownPreviewAsset)"

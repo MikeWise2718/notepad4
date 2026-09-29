@@ -55,6 +55,11 @@
 #define IDC_SCI_PAGE_LINK				105
 #define IDC_BUILD_INFO					110
 #define IDC_COPY_BUILD_INFO				111
+// fork-local additions, see src/ForkVersion.h
+#define IDC_FORK_DIVIDER				112
+#define IDC_FORK_VERSION				113
+#define IDC_FORK_CHANGES				114
+#define IDC_FORK_PAGE_LINK				115
 // Find/Replace Text
 #define IDD_FIND						118
 #define IDD_REPLACE						119
