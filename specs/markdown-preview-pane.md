@@ -31,6 +31,7 @@ Read that first — it establishes the platform constraints that shape everythin
 | 9 | Build verification across x64/Win32/ARM64/MinGW | Partial — ARM64 untested |
 | 10 | Mermaid diagram rendering in fenced blocks | Done |
 | 11 | Preview restricted to Markdown documents | Done |
+| 12 | Copy/Select All work in the preview pane | Done |
 
 ## Verification performed
 
@@ -332,3 +333,38 @@ cannot tell you what the pane on screen looks like.
   (hence all logic behind `MarkdownPreview.h`).
 - **Untested build matrix.** Only x64 Release is currently verified against the
   post-rebase tree; Win32/ARM64/MinGW need checking as part of task 9.
+
+## Accelerators steal the preview's editing keys
+
+Copy did not work in the preview pane, and failed silently rather than
+visibly: `DispatchMessageMain()` called `TranslateAccelerator(hwndMain, ...)`
+for every message without regard to which child window had focus. Ctrl+C
+matched `IDM_EDIT_COPY`, the accelerator consumed the message, and
+`DispatchMessage()` was never reached -- so the keystroke never arrived at
+WebView2 and Notepad4 copied the *editor's* selection instead. A user who
+selected text in the preview and pressed Ctrl+C got whatever happened to be
+selected behind the pane.
+
+Any new child window hosted in the main window has this problem. The
+find/replace dialog carries an explicit exemption at the top of the same
+function for exactly this reason.
+
+The exemption is deliberately narrow -- Ctrl+C, Ctrl+A, Ctrl+Insert. Handing
+*all* keys to the focused WebView would also surrender Ctrl+F10 (the shortcut
+that closes the pane, leaving no keyboard way out of it), Escape, and F11.
+
+**Do not identify the pane by the focused window's class name.** WebView2's
+child windows (`Chrome_WidgetWin_0`, `Chrome_WidgetWin_1`,
+`Chrome_RenderWidgetHostHWND`, `Intermediate D3D Window`) are an unspecified
+implementation detail of the installed Runtime and vary by version. Use the
+controller's `GotFocus`/`LostFocus` events, which are documented API. Note that
+hiding the pane does not reliably raise `LostFocus`, so the flag must also be
+cleared wherever the pane is hidden or torn down.
+
+### Testing input in this pane
+
+Synthetic input (`SendKeys`, `mouse_event`) is a poor way to verify this and was
+actively harmful once: `SetForegroundWindow()` from a background process is
+blocked by Windows, so a scripted click plus Ctrl+A/Ctrl+C went to whatever
+window was frontmost -- a browser -- and overwrote the clipboard with its page.
+Drive this by hand, or not at all.
