@@ -44,6 +44,12 @@ bool MarkdownPreview_IsAvailable() noexcept;
 void MarkdownPreview_Toggle(HWND hwndParent) noexcept;
 bool MarkdownPreview_IsVisible() noexcept;
 
+// True when the pane is showing and its WebView2 child window holds keyboard
+// focus. The main message loop uses this to skip the accelerator table so the
+// page receives its own editing keys (Ctrl+C, Ctrl+A) instead of having them
+// act on the editor behind it.
+bool MarkdownPreview_HasFocus() noexcept;
+
 // Position the pane. Called from MsgSize().
 void MarkdownPreview_Resize(int x, int y, int cx, int cy) noexcept;
 
@@ -65,6 +71,7 @@ void MarkdownPreview_Destroy() noexcept;
 #define MarkdownPreview_IsAvailable()			false
 #define MarkdownPreview_IsMermaidAvailable()	false
 #define MarkdownPreview_IsVisible()				false
+#define MarkdownPreview_HasFocus()				false
 #define MarkdownPreview_Toggle(hwndParent)		((void)0)
 #define MarkdownPreview_Resize(x, y, cx, cy)	((void)0)
 #define MarkdownPreview_ScheduleRefresh()		((void)0)

@@ -398,6 +398,7 @@ struct PreviewContext {
 	PreviewState state = PreviewState_None;
 	bool visible = false;
 	bool reported = false;			// error already shown once this session
+	bool focused = false;			// the WebView2 child window holds focus
 	RECT bounds{};
 	char *pendingHtml = nullptr;	// content produced before the view was ready
 };
@@ -405,6 +406,52 @@ struct PreviewContext {
 PreviewContext g_preview;
 
 void ApplyHtml(char *html) noexcept;
+
+// ICoreWebView2FocusChangedEventHandler, used for both GotFocus and LostFocus.
+//
+// WebView2 hosts its content in a child window whose class is an unspecified
+// implementation detail of the runtime, so the pane cannot be recognized by
+// inspecting the focused HWND. These events are the documented way to know
+// whether the WebView owns input, which the message loop needs so it can stop
+// translating accelerators the page should handle itself (Ctrl+C above all).
+class FocusHandler final : public ICoreWebView2FocusChangedEventHandler {
+public:
+	explicit FocusHandler(bool gained) noexcept : focused{gained} {}
+
+	ULONG STDMETHODCALLTYPE AddRef() noexcept override {
+		return InterlockedIncrement(&refCount);
+	}
+	ULONG STDMETHODCALLTYPE Release() noexcept override {
+		const LONG count = InterlockedDecrement(&refCount);
+		if (count == 0) {
+			delete this;
+		}
+		return count;
+	}
+	HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **ppv) noexcept override {
+		if (ppv == nullptr) {
+			return E_POINTER;
+		}
+		if (riid == IID_IUnknown || riid == IID_ICoreWebView2FocusChangedEventHandler) {
+			*ppv = this;
+			AddRef();
+			return S_OK;
+		}
+		*ppv = nullptr;
+		return E_NOINTERFACE;
+	}
+
+	HRESULT STDMETHODCALLTYPE Invoke(ICoreWebView2Controller *sender, IUnknown *args) noexcept override {
+		UNREFERENCED_PARAMETER(sender);
+		UNREFERENCED_PARAMETER(args);
+		g_preview.focused = focused;
+		return S_OK;
+	}
+
+private:
+	LONG refCount = 1;
+	const bool focused;
+};
 
 // ICoreWebView2CreateCoreWebView2ControllerCompletedHandler
 class ControllerHandler final : public ICoreWebView2CreateCoreWebView2ControllerCompletedHandler {
@@ -452,9 +499,12 @@ public:
 			ICoreWebView2Settings *settings = nullptr;
 			if (SUCCEEDED(g_preview.webview->get_Settings(&settings)) && settings != nullptr) {
 				// The preview renders local content only: no devtools, no
-				// context menu, no status bar.
+				// status bar. The context menu stays on because it carries the
+				// only discoverable Copy command for the rendered text; its
+				// navigation entries are harmless on a page with no links to
+				// follow and an opaque origin.
 				settings->put_IsScriptEnabled(mermaid ? TRUE : FALSE);
-				settings->put_AreDefaultContextMenusEnabled(FALSE);
+				settings->put_AreDefaultContextMenusEnabled(TRUE);
 				settings->put_AreDevToolsEnabled(FALSE);
 				settings->put_IsStatusBarEnabled(FALSE);
 				settings->put_IsZoomControlEnabled(TRUE);
@@ -476,6 +526,19 @@ public:
 					webview3->Release();
 				}
 			}
+		}
+
+		// Track focus so DispatchMessageMain() can let the page handle its own
+		// editing keys. A failure here only costs the accelerator exemption,
+		// so it is not worth failing creation over.
+		EventRegistrationToken token;
+		if (FocusHandler *gotFocus = new (std::nothrow) FocusHandler(true)) {
+			controller->add_GotFocus(gotFocus, &token);
+			gotFocus->Release();
+		}
+		if (FocusHandler *lostFocus = new (std::nothrow) FocusHandler(false)) {
+			controller->add_LostFocus(lostFocus, &token);
+			lostFocus->Release();
 		}
 
 		g_preview.state = PreviewState_Ready;
@@ -702,9 +765,14 @@ bool MarkdownPreview_IsVisible() noexcept {
 	return g_preview.visible;
 }
 
+bool MarkdownPreview_HasFocus() noexcept {
+	return g_preview.visible && g_preview.focused;
+}
+
 void MarkdownPreview_Toggle(HWND hwndParent) noexcept {
 	if (g_preview.visible) {
 		g_preview.visible = false;
+		g_preview.focused = false;	// hiding does not always raise LostFocus
 		if (g_preview.controller != nullptr) {
 			g_preview.controller->put_IsVisible(FALSE);
 		}
@@ -818,6 +886,7 @@ void MarkdownPreview_Destroy() noexcept {
 	// browser process is shutting down has been a source of crashes.
 	g_preview.state = PreviewState_None;
 	g_preview.visible = false;
+	g_preview.focused = false;
 }
 
 #endif // NP2_ENABLE_MARKDOWN_PREVIEW

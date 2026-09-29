@@ -462,11 +462,46 @@ static void CleanUpResources(bool initialized) noexcept {
 	OleUninitialize();
 }
 
+// Keys the Markdown preview must receive itself when it has focus: the
+// clipboard and selection commands that act on the rendered page. Ctrl+Insert
+// is the alternate Copy binding; Ctrl+A selects the whole document.
+static bool IsPreviewEditingKey(const MSG *msg) noexcept {
+	// Alt-modified keys arrive as WM_SYSKEYDOWN, so plain WM_KEYDOWN plus a
+	// held Ctrl already excludes the Ctrl+Alt combinations in the table.
+	if (msg->message != WM_KEYDOWN || !(GetKeyState(VK_CONTROL) & 0x8000)) {
+		return false;
+	}
+	switch (msg->wParam) {
+	case 'A':
+	case 'C':
+	case VK_INSERT:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void DispatchMessageMain(MSG *msg) noexcept {
 	if (hDlgFindReplace != nullptr && (msg->hwnd == hDlgFindReplace || IsChild(hDlgFindReplace, msg->hwnd))) {
 		if (TranslateAccelerator(hDlgFindReplace, hAccFindReplace, msg) || IsDialogMessage(hDlgFindReplace, msg)) {
 			return;
 		}
+	}
+
+	// While the Markdown preview has focus, let WebView2 handle the keys that
+	// operate on its own selection. The accelerator table claims Ctrl+C,
+	// Ctrl+A and Ctrl+Insert for the editor, and TranslateAccelerator()
+	// consumes the message, so without this the keystroke never reaches the
+	// page: Copy would silently act on the editor's selection instead of the
+	// one the user made in the preview.
+	//
+	// Only these few are handed over. Passing every key through would also
+	// surrender the commands that must keep working from the pane, notably
+	// Ctrl+F10 to close it again, Escape, and F11.
+	if (MarkdownPreview_HasFocus() && IsPreviewEditingKey(msg)) {
+		TranslateMessage(msg);
+		DispatchMessage(msg);
+		return;
 	}
 
 	if (!TranslateAccelerator(hwndMain, hAccMain, msg)) {
