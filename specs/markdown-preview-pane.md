@@ -32,6 +32,7 @@ Read that first — it establishes the platform constraints that shape everythin
 | 10 | Mermaid diagram rendering in fenced blocks | Done |
 | 11 | Preview restricted to Markdown documents | Done |
 | 12 | Copy/Select All work in the preview pane | Done |
+| 13 | Scroll sync, echo highlight, scroll kept on refresh | Done — see `specs/markdown-preview-sync.md` |
 
 ## Verification performed
 

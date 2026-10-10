@@ -1,24 +1,79 @@
 # Markdown preview sync and echo highlight
 
-**Status: plan, awaiting review. No code written yet.**
+**Status: Phase 1 implemented and verified (fork 1.3.0). Phase 2 not planned.**
 
 Keep the Markdown preview scrolled to match the editor, and show the editor's
 selection as a highlight in the preview. Behind one toggle, off by default.
+
+The four decisions below were taken as proposed: off by default, one toggle,
+`Ctrl+Shift+F10`, one-way.
 
 ## Task status
 
 | # | Task | Status |
 |---|------|--------|
-| 0 | Spike: confirm `ExecuteScript` reaches a page under our CSP | Not started |
-| 1 | Source-line markers in the rendered HTML | Not started |
-| 2 | Decouple "script enabled" from Mermaid | Not started |
-| 3 | Page-side sync script (nonce'd, inline) | Not started |
-| 4 | Keep scroll position across refreshes | Not started |
-| 5 | Editor → preview scroll sync | Not started |
-| 6 | Editor selection → preview echo highlight | Not started |
-| 7 | Toggle: menu item, shortcut, persisted setting | Not started |
-| 8 | Fork version 1.2.0 → 1.3.0, About change list, spec notes | Not started |
+| 0 | Spike: confirm `ExecuteScript` reaches a page under our CSP | Done — works, **even with page script disabled** |
+| 1 | Source-line markers in the rendered HTML | Done |
+| 2 | Decouple "script enabled" from Mermaid | **Dropped** — not needed, see "What changed from the plan" |
+| 3 | Sync script (host-injected rather than nonce'd in the page) | Done |
+| 4 | Keep scroll position across refreshes | Done |
+| 5 | Editor → preview scroll sync | Done |
+| 6 | Editor selection → preview echo highlight | Done |
+| 7 | Toggle: menu item, shortcut, persisted setting | Done |
+| 8 | Fork version 1.2.0 → 1.3.0, About change list, spec notes | Done |
 | 9 | Preview → editor sync (reverse direction) | **Not planned** — see Phase 2 |
+
+## What changed from the plan
+
+**The sync script is injected by the host, not shipped in the page.** WebView2
+runs `ExecuteScript()` code even when page script is disabled, and the page's
+CSP does not apply to it. The spike confirmed both, with the Mermaid asset
+removed so page script was off. So the sync script lives in
+`MarkdownPreview.cpp` as `SyncScript`, is injected after each
+`NavigationCompleted`, and page script stays tied to Mermaid exactly as before.
+That is strictly safer than the plan, which would have turned page script on
+whenever sync was on. Task 2 was dropped as a result.
+
+Links followed out of the preview to `http(s)` pages do not get the script.
+
+**Every document switch forgets the scroll position.** Without that, a newly
+opened file's preview would open at the previous file's position. It happens in
+`UpdateMarkdownPreviewForDocument()`, which already runs on load, on new, and on
+a scheme change.
+
+## Results
+
+Automated, repeatable: `tests/markdown-preview/run.ps1` builds a console
+harness around `MarkdownPreview_ToHtml()` and checks each sample in
+`tests/markdown-preview/samples/`, with LF, CRLF and CR-only variants. A Python
+checker (a different parser from the C++ one) verifies that markers are pure
+insertions, that each parses as a real element (never inside a tag, an
+attribute, `<style>` or `<textarea>`), and that the text after each marker is on
+that source line. A mutation test confirmed the checker catches each failure
+kind, including off-by-one line labels.
+
+In the app, driven only by messages to the Scintilla window plus screen capture:
+
+| Check | Result |
+|---|---|
+| Scroll sync, page script on | Editor top line 162 (`## Section 31`) ↔ preview "Section 31" at top |
+| Scroll sync, page script **off** | Line 222 ↔ "Section 40" at top |
+| Echo highlight | Selecting lines 169–170 highlights exactly that paragraph |
+| Mermaid block | Preview interpolates part-way into the diagram |
+| Bottom pin | Both panes end on Section 60 |
+| Sync off: preservation | Preview stayed at the end through two full re-renders while the editor sat at the top |
+
+**Performance:** both renders (plain and marked) of a 20,000-line document take
+28 ms in total; all 12,500 non-blank lines get a correct marker.
+
+**Cost:** markers make the HTML about 66% larger (520 KB → 863 KB on that
+document). The preview's existing 1.5 MB cap on what it can display therefore
+arrives sooner with sync on — at roughly 600 KB of Markdown instead of about
+1 MB. Beyond the cap the preview is truncated, as before.
+
+**Not verified by me:** the `Ctrl+Shift+F10` keystroke itself (the command was
+driven by its ID; pressing keys into whatever window is in front is off-limits
+after an earlier incident), and the feel of scrolling a real document by hand.
 
 ## What you get
 
@@ -43,6 +98,9 @@ selection as a highlight in the preview. Behind one toggle, off by default.
    not move the editor. See Phase 2 for why I'd defer the reverse.
 
 ## Design
+
+The design as planned. Sections 2 and 3 were superseded during implementation;
+see "What changed from the plan" above.
 
 ### 1. Where source positions come from (no changes to md4c)
 

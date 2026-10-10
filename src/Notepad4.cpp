@@ -210,6 +210,7 @@ static bool bShowMarkdownPreview;
 static int iMarkdownPreviewSplit;
 int iMarkdownPreviewRefresh;		// read by MarkdownPreview.cpp
 bool bMarkdownPreviewMermaid;		// read by MarkdownPreview.cpp
+bool bMarkdownPreviewSync;			// read by MarkdownPreview.cpp
 static bool bMarkdownSplitterDragging;
 
 // Defined below alongside MsgSize(), used by the window procedure above it.
@@ -2209,6 +2210,9 @@ static void UpdateMarkdownPreviewForDocument(HWND hwnd) noexcept {
 	if (!MarkdownPreview_IsAvailable()) {
 		return;
 	}
+	// A different document: its preview should not open at the old one's
+	// scroll position.
+	MarkdownPreview_ForgetScroll();
 	const bool wanted = bShowMarkdownPreview && IsMarkdownDocument();
 	if (wanted == MarkdownPreview_IsVisible()) {
 		return;
@@ -2802,6 +2806,8 @@ void MsgInitMenu(HWND hwnd, WPARAM wParam, LPARAM lParam) noexcept {
 		// the setting would have nothing to act on.
 		EnableCmd(hmenu, IDM_MARKDOWN_PREVIEW_MERMAID, available && MarkdownPreview_IsMermaidAvailable());
 		CheckCmd(hmenu, IDM_MARKDOWN_PREVIEW_MERMAID, bMarkdownPreviewMermaid && MarkdownPreview_IsMermaidAvailable());
+		EnableCmd(hmenu, IDM_MARKDOWN_PREVIEW_SYNC, available && markdown);
+		CheckCmd(hmenu, IDM_MARKDOWN_PREVIEW_SYNC, bMarkdownPreviewSync);
 	}
 #endif
 #if NP2_ENABLE_APP_LOCALIZATION_DLL
@@ -4395,6 +4401,13 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 		bMarkdownPreviewMermaid = !bMarkdownPreviewMermaid;
 		MarkdownPreview_Refresh();
 		break;
+
+	case IDM_MARKDOWN_PREVIEW_SYNC:
+		// Re-render either way: line markers are only emitted while sync is
+		// on, and turning it off should drop the highlight with them.
+		bMarkdownPreviewSync = !bMarkdownPreviewSync;
+		MarkdownPreview_Refresh();
+		break;
 #endif
 
 	case IDM_VIEW_CLEARWINPOS:
@@ -5003,6 +5016,8 @@ LRESULT MsgNotify(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 					}
 				}
 			}
+			// Outside the block above: a pure scroll must still reach it.
+			MarkdownPreview_OnEditorUpdate(updated);
 		} break;
 
 		case SCN_CHARADDED: {
@@ -5604,6 +5619,7 @@ void LoadSettings() noexcept {
 	iValue = section.GetInt(L"MarkdownPreviewRefresh", MarkdownPreviewRefresh_Default);
 	iMarkdownPreviewRefresh = clamp(iValue, 0, static_cast<int>(MarkdownPreviewRefresh_MaxValue));
 	bMarkdownPreviewMermaid = section.GetBool(L"MarkdownPreviewMermaid", true);
+	bMarkdownPreviewSync = section.GetBool(L"MarkdownPreviewSync", false);
 #endif
 
 	iValue = section.GetInt(L"FullScreenMode", FullScreenMode_Default);
@@ -5850,6 +5866,7 @@ void SaveSettings(bool bSaveSettingsNow) noexcept {
 	section.SetIntEx(L"MarkdownPreviewSplit", iMarkdownPreviewSplit, MarkdownPreviewSplit_Default);
 	section.SetIntEx(L"MarkdownPreviewRefresh", iMarkdownPreviewRefresh, MarkdownPreviewRefresh_Default);
 	section.SetBoolEx(L"MarkdownPreviewMermaid", bMarkdownPreviewMermaid, true);
+	section.SetBoolEx(L"MarkdownPreviewSync", bMarkdownPreviewSync, false);
 #endif
 
 	SaveIniSection(INI_SECTION_NAME_SETTINGS, pIniSectionBuf);

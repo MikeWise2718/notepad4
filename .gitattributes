@@ -7,3 +7,7 @@
 # Vendored web assets: kept byte-identical to upstream so the recorded
 # SHA-256 in src/webview2-assets/README-vendored.md stays verifiable.
 src/webview2-assets/mermaid.min.js	-text
+
+# Line-ending test samples must stay byte-exact.
+tests/markdown-preview/samples/constructs-crlf.md	-text
+tests/markdown-preview/samples/constructs-cr.md	-text

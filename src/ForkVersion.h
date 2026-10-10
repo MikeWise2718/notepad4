@@ -19,7 +19,7 @@
 //   major - a new pane, window, or other structural addition
 //   minor - a new feature or command within an existing surface
 //   patch - a fix or refinement to existing fork behavior
-#define NP2_FORK_VERSION			L"1.2.0"
+#define NP2_FORK_VERSION			L"1.3.0"
 
 // Shown in the title bar, so keep it short.
 #define NP2_FORK_NAME				L"mw"
@@ -36,6 +36,8 @@
 // user would notice, newest first; the full history is in git and in
 // specs\markdown-preview-pane.md.
 #define NP2_FORK_CHANGES \
+	L"\x2022 Preview can follow the editor's scroll and selection (Ctrl+Shift+F10)\r\n" \
+	L"\x2022 Preview keeps its scroll position when it refreshes\r\n" \
 	L"\x2022 Markdown preview pane (Ctrl+F10), live/idle/manual refresh\r\n" \
 	L"\x2022 Mermaid diagrams rendered in the preview, from a bundled copy\r\n" \
 	L"\x2022 Preview shown only for Markdown documents\r\n" \

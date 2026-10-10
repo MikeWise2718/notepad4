@@ -29,7 +29,11 @@ enum MarkdownPreviewRefresh {
 // mermaid enables diagram rendering for ```mermaid fenced blocks. It only
 // affects the generated page; whether the script can actually run also
 // depends on MarkdownPreview_IsMermaidAvailable().
-char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode, bool mermaid) noexcept;
+//
+// lineMarkers inserts an empty <span data-l="N"> before the first rendered
+// text of each source line N (0-based), which is what scroll sync and the
+// selection highlight navigate by. Off, the output is unchanged.
+char *MarkdownPreview_ToHtml(const char *markdown, size_t length, bool darkMode, bool mermaid, bool lineMarkers) noexcept;
 
 // True when mermaid.min.js was found next to the executable. The setting can
 // be on while this is false (a stripped-down deployment); diagrams then fall
@@ -63,6 +67,16 @@ void MarkdownPreview_Refresh() noexcept;
 // Re-apply colors after a theme change.
 void MarkdownPreview_ApplyTheme() noexcept;
 
+// Forward the editor's SCN_UPDATEUI flags. With sync on, a scroll moves the
+// preview to the same source line and a selection change is echoed as a
+// highlight. Cheap to call on every notification; it ignores the rest.
+void MarkdownPreview_OnEditorUpdate(unsigned updated) noexcept;
+
+// A different document is now in the editor. The next render opens at the top
+// (or at the editor's position, with sync on) instead of where the previous
+// document's preview was scrolled.
+void MarkdownPreview_ForgetScroll() noexcept;
+
 // Release the WebView2 environment and controller.
 void MarkdownPreview_Destroy() noexcept;
 
@@ -77,6 +91,8 @@ void MarkdownPreview_Destroy() noexcept;
 #define MarkdownPreview_ScheduleRefresh()		((void)0)
 #define MarkdownPreview_Refresh()				((void)0)
 #define MarkdownPreview_ApplyTheme()			((void)0)
+#define MarkdownPreview_OnEditorUpdate(updated)	((void)0)
+#define MarkdownPreview_ForgetScroll()			((void)0)
 #define MarkdownPreview_Destroy()				((void)0)
 
 #endif // NP2_ENABLE_MARKDOWN_PREVIEW
