@@ -1844,6 +1844,7 @@ BEGIN
     IDT_FILE_LAUNCH         "Execute Document"
     IDT_VIEW_ALWAYSONTOP    "Always On Top"
     IDT_FILE_NEWWINDOW      "New Window"
+    IDT_VIEW_MARKDOWN_SYNC  "Sync Preview with Editor (Ctrl+Shift+F10)"
 END
 
 STRINGTABLE

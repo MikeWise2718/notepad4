@@ -69,7 +69,9 @@ static HICON hTrayIcon = nullptr;
 static UINT uTrayIconDPI = 0;
 
 #define TOOLBAR_COMMAND_BASE	IDT_FILE_NEW
-#define DefaultToolbarButtons	L"22 3 0 1 27 2 0 4 18 19 0 5 6 0 7 8 9 20 0 10 11 0 12 0 24 0 13 14 0 15 16 0 17"
+// 28 (Markdown preview sync, a fork addition) sits beside 12 (word wrap), the
+// other view toggle.
+#define DefaultToolbarButtons	L"22 3 0 1 27 2 0 4 18 19 0 5 6 0 7 8 9 20 0 10 11 0 12 28 0 24 0 13 14 0 15 16 0 17"
 static TBBUTTON tbbMainWnd[] = {
 	{0, 	0, 					0, 				 TBSTYLE_SEP, {0}, 0, 0},
 	{0, 	IDT_FILE_NEW, 		TBSTATE_ENABLED, TBSTYLE_BUTTON, {0}, 0, 0},
@@ -99,6 +101,8 @@ static TBBUTTON tbbMainWnd[] = {
 	{24, 	IDT_FILE_LAUNCH, 	TBSTATE_ENABLED, TBSTYLE_BUTTON, {0}, 0, 0},
 	{25, 	IDT_VIEW_ALWAYSONTOP, 	TBSTATE_ENABLED, TBSTYLE_BUTTON, {0}, 0, 0},
 	{26, 	IDT_FILE_NEWWINDOW, 	TBSTATE_ENABLED, TBSTYLE_BUTTON, {0}, 0, 0},
+	// Image drawn by tools/toolbar/add_sync_icon.py.
+	{27, 	IDT_VIEW_MARKDOWN_SYNC, 	TBSTATE_ENABLED, TBSTYLE_BUTTON, {0}, 0, 0},
 };
 
 WCHAR	szIniFile[MAX_PATH];
@@ -4402,11 +4406,13 @@ LRESULT MsgCommand(HWND hwnd, WPARAM wParam, LPARAM lParam) {
 		MarkdownPreview_Refresh();
 		break;
 
+	case IDT_VIEW_MARKDOWN_SYNC:
 	case IDM_MARKDOWN_PREVIEW_SYNC:
 		// Re-render either way: line markers are only emitted while sync is
 		// on, and turning it off should drop the highlight with them.
 		bMarkdownPreviewSync = !bMarkdownPreviewSync;
 		MarkdownPreview_Refresh();
+		UpdateToolbar();
 		break;
 #endif
 
@@ -6727,6 +6733,12 @@ void UpdateToolbar() noexcept {
 
 	CheckTool(IDT_VIEW_WORDWRAP, fvCurFile.fWordWrap);
 	CheckTool(IDT_VIEW_ALWAYSONTOP, IsTopMost());
+#if NP2_ENABLE_MARKDOWN_PREVIEW
+	// Not MarkdownPreview_IsAvailable(): it queries the WebView2 runtime, too
+	// costly for a function that runs on nearly every UI update.
+	EnableTool(IDT_VIEW_MARKDOWN_SYNC, IsMarkdownDocument());
+	CheckTool(IDT_VIEW_MARKDOWN_SYNC, bMarkdownPreviewSync);
+#endif
 }
 
 //=============================================================================

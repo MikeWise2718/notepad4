@@ -819,6 +819,9 @@
 #define IDT_FILE_LAUNCH					40624
 #define IDT_VIEW_ALWAYSONTOP			40625
 #define IDT_FILE_NEWWINDOW				40626
+// Fork addition. Must stay IDT_FILE_NEW + its tbbMainWnd index - 1: saved
+// toolbar layouts store buttons by that offset (see Toolbar_GetButtons()).
+#define IDT_VIEW_MARKDOWN_SYNC			40627
 
 #define IDM_LANG_USER_DEFAULT			40650
 #define IDM_LANG_ENGLISH_US				40651
