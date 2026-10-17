@@ -11,7 +11,7 @@ installs or updates from it.
 | 1 | `tools/release.ps1`: build, package, publish a GitHub Release | Done |
 | 2 | `tools/install.ps1`: install, update in place, uninstall | Done |
 | 3 | Local tests: fresh install, update while running, settings kept, uninstall | Done |
-| 4 | First release published (`mw-1.3.1`) | See below |
+| 4 | First release published (`mw-1.3.1`) | Done — installed from GitHub into a scratch folder, checksum verified |
 | 5 | Install tested on a second machine | Not done — needs you, or permission to use syther |
 | 6 | Build the release in CI instead of on spearow | Not planned |
 
@@ -95,6 +95,7 @@ the real PATH and Start menu were not touched:
 | Re-run after closing | `.old` files removed |
 | `-Uninstall` | Program files removed; `Notepad4.ini` and `Notepad4 DarkTheme.ini` kept, marker intact |
 | `irm | iex` with a `param()` block, in 5.1 | Defaults apply, `return` exits cleanly |
+| Script fetched from the raw GitHub URL, run against release `mw-1.3.1` | API lookup, download and checksum all good; exe is build 26.10.6306 from `3b805e1f` |
 
 Not done here: an install on a second, clean machine. syther would be the
 natural one, but installing software there was not part of the request.
