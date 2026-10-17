@@ -85,7 +85,9 @@ $files = @(
 	@{ From = "$bin\matepath.exe";                    To = 'matepath.exe' },
 	@{ From = "$bin\WebView2Loader.dll";              To = 'WebView2Loader.dll' },
 	@{ From = "$bin\res\mermaid.min.js";              To = 'res\mermaid.min.js' },
-	@{ From = "$root\License.txt";                    To = 'License.txt' },
+	# Not License.txt: installs may go into a shared folder (D:\ut on syther
+	# had another program's License.txt), and must not overwrite its files.
+	@{ From = "$root\License.txt";                    To = 'Notepad4-License.txt' },
 	@{ From = "$root\doc\Notepad4.ini";               To = 'Notepad4.ini-default' },
 	@{ From = "$root\doc\Notepad4 DarkTheme.ini";     To = 'Notepad4 DarkTheme.ini-default' },
 	@{ From = "$root\matepath\doc\matepath.ini";      To = 'matepath.ini-default' }

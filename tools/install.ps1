@@ -19,6 +19,11 @@
 # Notepad4 is open: a running exe cannot be overwritten, but it can be renamed
 # out of the way, and the open windows keep running the old version.
 #
+# Safe in a shared folder such as D:\ut: the files installed are recorded in
+# Notepad4-files.txt, and -Uninstall removes only those, never the rest of the
+# folder, and removes a PATH entry only if this script added it. The licence is
+# installed as Notepad4-License.txt so it cannot replace another program's.
+#
 # Settings are never touched. They live in Notepad4.ini beside the exe, which
 # Notepad4 creates on first run from the shipped Notepad4.ini-default; releases
 # never contain Notepad4.ini itself.
@@ -42,7 +47,39 @@ $Repo = 'MikeWise2718/notepad4'
 $ShortcutPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Notepad4.lnk'
 $LockableFiles = @('Notepad4.exe', 'matepath.exe', 'WebView2Loader.dll')   # held open while running
 
+# The install folder may be shared with other programs (D:\ut on syther holds
+# a whole toolbox). So everything here touches only what this script put
+# there, recorded in a manifest beside the exe -- never "the whole folder".
+$ManifestName = 'Notepad4-files.txt'
+# What a release zip can contain, for installs made before the manifest existed.
+$FallbackFiles = @('Notepad4.exe', 'matepath.exe', 'WebView2Loader.dll', 'VERSION.txt', 'Notepad4-License.txt',
+	'Notepad4.ini-default', 'Notepad4 DarkTheme.ini-default', 'matepath.ini-default', 'res\mermaid.min.js')
+# Renamed on the way in: a shared folder may already have another program's.
+$RenamedFiles = @{ 'License.txt' = 'Notepad4-License.txt' }
+
 function Say([string]$message) { Write-Host "notepad4: $message" }
+
+function Read-Manifest([string]$dir) {
+	$path = Join-Path $dir $ManifestName
+	$result = @{ Exists = $false; Files = @(); PathAdded = $false }
+	if (-not (Test-Path $path)) { return $result }
+	$result.Exists = $true
+	foreach ($line in Get-Content $path) {
+		if ($line -match '^#\s*path-added:\s*yes') { $result.PathAdded = $true }
+		elseif ($line -and -not $line.StartsWith('#')) { $result.Files += $line.Trim() }
+	}
+	return $result
+}
+
+# Leftovers from updating while Notepad4 was open: only our own files' .old
+# copies, never any *.old a shared folder may hold.
+function Get-OwnLeftovers([string]$dir) {
+	foreach ($name in $LockableFiles) {
+		Get-ChildItem $dir -File -ErrorAction SilentlyContinue | Where-Object {
+			$_.Name -eq "$name.old" -or $_.Name -like "$name.*.old"
+		}
+	}
+}
 
 function Get-UserPath {
 	$value = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -84,17 +121,39 @@ if ($Uninstall) {
 			Say "left Start menu shortcut alone (it points to $target)"
 		}
 	}
-	if (Test-OnPath $InstallDir) {
+	$manifest = Read-Manifest $InstallDir
+	# Only a PATH entry this script added. Without a manifest (an older
+	# install), only for the default folder, which nothing else would add.
+	$defaultDir = Join-Path $env:LOCALAPPDATA 'Programs\Notepad4'
+	$removePath = $manifest.PathAdded -or ((-not $manifest.Exists) -and ($InstallDir.TrimEnd('\') -ieq $defaultDir))
+	if ((Test-OnPath $InstallDir) -and $removePath) {
 		$kept = (Get-UserPath).Split(';') | Where-Object { $_ -and ($_.TrimEnd('\') -ine $InstallDir.TrimEnd('\')) }
 		[Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')
 		Say 'removed from user PATH'
+	} elseif (Test-OnPath $InstallDir) {
+		Say 'left the PATH entry alone (it was there before Notepad4 was installed)'
 	}
 	if (Test-Path $InstallDir) {
-		$keep = @('Notepad4.ini', 'Notepad4 DarkTheme.ini', 'matepath.ini')
-		Get-ChildItem $InstallDir -Force | Where-Object { $keep -notcontains $_.Name } | ForEach-Object {
-			try { Remove-Item $_.FullName -Recurse -Force } catch { Say "could not remove $($_.Name) (in use?)" }
+		if ($manifest.Exists) { $files = $manifest.Files } else { $files = $FallbackFiles }
+		$files += $ManifestName
+		$failed = 0
+		foreach ($relative in $files) {
+			$path = Join-Path $InstallDir $relative
+			if (Test-Path $path) {
+				try { Remove-Item $path -Force } catch { $failed++; Say "could not remove $relative (in use?)" }
+			}
 		}
-		Say "removed program files; settings kept in $InstallDir (delete the folder to remove them too)"
+		Get-OwnLeftovers $InstallDir | ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+		# Folders go only if nothing else is left in them.
+		$res = Join-Path $InstallDir 'res'
+		if ((Test-Path $res) -and -not (Get-ChildItem $res -Force)) { Remove-Item $res -Force }
+		if (-not (Get-ChildItem $InstallDir -Force)) {
+			Remove-Item $InstallDir -Force
+			Say "removed $InstallDir"
+		} else {
+			Say "removed Notepad4's files; everything else in $InstallDir, including settings, is untouched"
+		}
+		if ($failed) { Say "$failed file(s) were in use; close Notepad4 and run -Uninstall again" }
 	}
 	return
 }
@@ -178,21 +237,22 @@ try {
 	# --- Install ---------------------------------------------------------------
 
 	New-Item -ItemType Directory -Force $InstallDir | Out-Null
-	# Leftovers from an update made while Notepad4 was open.
-	Get-ChildItem $InstallDir -Filter '*.old' -File -ErrorAction SilentlyContinue | ForEach-Object {
-		Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
-	}
+	$previous = Read-Manifest $InstallDir
+	Get-OwnLeftovers $InstallDir | ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
 
 	$running = Get-Process -Name Notepad4, matepath -ErrorAction SilentlyContinue |
 		Where-Object { $_.Path -and ($_.Path -like (Join-Path $InstallDir '*')) }
 	if ($running) { Say "$(@($running).Count) window(s) open; they keep the old version until closed" }
 
+	$installedFiles = @()
 	foreach ($item in Get-ChildItem $unpacked -Recurse -File) {
 		$relative = $item.FullName.Substring($unpacked.Length + 1)
+		if ($RenamedFiles.ContainsKey($relative)) { $relative = $RenamedFiles[$relative] }
 		$target = Join-Path $InstallDir $relative
 		New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
 		if ($LockableFiles -contains $relative) { Clear-Locked $target }
 		Copy-Item $item.FullName $target -Force
+		$installedFiles += $relative
 	}
 } finally {
 	Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
@@ -210,6 +270,9 @@ if (-not $NoShortcut) {
 	$link.Save()
 	Say 'Start menu shortcut: Notepad4'
 }
+# Whether this script owns the PATH entry, so -Uninstall knows whether it may
+# remove it. A folder that was on PATH before (D:\ut) stays ours to leave alone.
+$pathAdded = $previous.PathAdded
 if (-not $NoPath) {
 	if (Test-OnPath $InstallDir) {
 		Say 'already on user PATH'
@@ -217,9 +280,16 @@ if (-not $NoPath) {
 		$current = (Get-UserPath).TrimEnd(';')
 		if ($current) { $current = "$current;$InstallDir" } else { $current = $InstallDir }
 		[Environment]::SetEnvironmentVariable('Path', $current, 'User')
+		$pathAdded = $true
 		Say 'added to user PATH (open a new terminal for `notepad4 <file>` to work)'
 	}
 }
+
+$manifestLines = @(
+	'# Files installed by Notepad4''s tools/install.ps1. -Uninstall removes only these.',
+	"# path-added: $(if ($pathAdded) { 'yes' } else { 'no' })"
+) + $installedFiles
+Set-Content (Join-Path $InstallDir $ManifestName) $manifestLines -Encoding UTF8
 
 # The Markdown preview needs the Edge WebView2 Runtime. Its documented
 # registry entry, per-machine or per-user install.

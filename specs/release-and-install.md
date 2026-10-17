@@ -51,7 +51,7 @@ PATH entry. No installer toolchain, no admin, no registry beyond PATH.
 | `Notepad4.exe`, `matepath.exe` | the editor, and the file browser behind its Browse button |
 | `WebView2Loader.dll`, `res\mermaid.min.js` | Markdown preview and its diagrams |
 | `Notepad4.ini-default`, `Notepad4 DarkTheme.ini-default`, `matepath.ini-default` | seed settings |
-| `License.txt`, `VERSION.txt` | licence; tag and commit, read by the installer |
+| `Notepad4-License.txt`, `VERSION.txt` | licence (not `License.txt`, see below); tag and commit, read by the installer |
 
 **Settings are never overwritten.** In a portable install `Notepad4.ini` lives
 beside the exe. Notepad4 itself creates it on first run, copying
@@ -66,6 +66,25 @@ old version until closed.
 
 **Integrity.** Each release carries a `.sha256`; the installer checks it, for
 downloads and for `-ZipPath`.
+
+**Safe in a shared folder.** An install folder may hold other programs, as
+syther's `D:\ut` does. So the installer only ever touches what it put there:
+
+- It records the files it installed in `Notepad4-files.txt`, and `-Uninstall`
+  removes only those (falling back to the fixed list a release can contain, for
+  installs made before the manifest). Folders go only if left empty.
+- `.old` cleanup matches only its own files' leftovers (`Notepad4.exe.old`,
+  `Notepad4.exe.<timestamp>.old`, ...), never any `*.old`.
+- The manifest records whether the installer **added** the PATH entry
+  (`# path-added: yes|no`); `-Uninstall` removes the entry only then. A folder
+  that was on PATH beforehand stays on it.
+- The licence ships as `Notepad4-License.txt`. Older zips (`mw-1.3.1`) still
+  contain `License.txt`, which the installer renames on the way in.
+
+The first version of the installer did none of this: `-Uninstall -InstallDir
+D:\ut` would have deleted every other tool in that folder and removed it from
+PATH, and an install there overwrote another program's `License.txt`. Found and
+fixed before any uninstall ran against a shared folder.
 
 **Windows PowerShell 5.1** is the target for the installer, since it is what
 every Windows machine has. Two 5.1 pitfalls are avoided in the release script:
@@ -96,6 +115,8 @@ the real PATH and Start menu were not touched:
 | `-Uninstall` | Program files removed; `Notepad4.ini` and `Notepad4 DarkTheme.ini` kept, marker intact |
 | `irm | iex` with a `param()` block, in 5.1 | Defaults apply, `return` exits cleanly |
 | Script fetched from the raw GitHub URL, run against release `mw-1.3.1` | API lookup, download and checksum all good; exe is build 26.10.6306 from `3b805e1f` |
+| Shared folder: foreign `License.txt`, exe, `.old` file, subfolder, settings | Install kept all of them and added `Notepad4-License.txt`; uninstall removed only Notepad4's files |
+| Dedicated folder: own `.old` leftovers and a foreign one | Own ones (incl. timestamped) cleaned, foreign kept; uninstall removed the whole folder |
 
 ### On syther (2026-10-17)
 
