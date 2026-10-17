@@ -1,5 +1,42 @@
 # Notepad4 and matepath
 
+> **This is a fork** of [zufuliu/notepad4](https://github.com/zufuliu/notepad4) that adds a
+> Markdown preview pane. Everything below the line is upstream's README, unchanged.
+>
+> **What this fork adds**
+>
+> * Markdown preview pane beside the editor (`Ctrl+F10`), with live, on-idle or manual refresh
+> * Mermaid diagrams rendered in the preview, from a bundled copy (no network)
+> * Preview can follow the editor's scrolling and echo its selection as a highlight
+>   (chain-link toolbar button, or `Ctrl+Shift+F10`)
+> * The preview keeps its scroll position when it refreshes
+> * Fork version shown in the title bar and the About box
+>
+> **Install or update** — Windows 10/11 x64, no admin rights needed. In PowerShell:
+>
+> ```powershell
+> irm https://raw.githubusercontent.com/MikeWise2718/notepad4/main/tools/install.ps1 | iex
+> ```
+>
+> This installs the [latest release](https://github.com/MikeWise2718/notepad4/releases/latest)
+> to `%LOCALAPPDATA%\Programs\Notepad4`, verifies its checksum, and adds a Start menu
+> shortcut and a PATH entry (`notepad4 file.md` works in a new terminal). Run the same line
+> again to update, even while Notepad4 is open. Settings in `Notepad4.ini` are never
+> overwritten.
+>
+> Prefer to do it by hand? Download the zip from the
+> [releases page](https://github.com/MikeWise2718/notepad4/releases/latest), unpack it
+> anywhere and run `Notepad4.exe`; it is fully portable.
+>
+> To uninstall, download [`install.ps1`](tools/install.ps1) and run
+> `powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall` (your settings are kept).
+>
+> The preview needs the Microsoft Edge
+> [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which
+> Windows 11 includes. Without it the editor works normally and the preview stays off.
+
+---
+
 Notepad4 (Notepad2⨯2, Notepad2++) is a light-weight Scintilla based text editor for Windows with syntax highlighting, code folding, auto-completion and API list for many programming languages and documents, it's based on (rewritten in modern C++) Florian's [Notepad2](https://www.flos-freeware.ch/notepad2.html) and XhmikosR's [Notepad2-mod](https://xhmikosr.github.io/notepad2-mod/). matepath is a file browser plugin and based on (rewritten in modern C++) Florian's [metapath](https://www.flos-freeware.ch/archive.html).
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](License.txt) [![Latest release](https://img.shields.io/github/release/zufuliu/notepad4.svg)](https://github.com/zufuliu/notepad4/releases) [![Downloads](https://img.shields.io/github/downloads/zufuliu/notepad4/total.svg)](https://github.com/zufuliu/notepad4/releases)
