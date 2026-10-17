@@ -12,7 +12,7 @@ installs or updates from it.
 | 2 | `tools/install.ps1`: install, update in place, uninstall | Done |
 | 3 | Local tests: fresh install, update while running, settings kept, uninstall | Done |
 | 4 | First release published (`mw-1.3.1`) | Done — installed from GitHub into a scratch folder, checksum verified |
-| 5 | Install tested on a second machine | Not done — needs you, or permission to use syther |
+| 5 | Install tested on a second machine | Done — syther, 2026-10-17 (see below) |
 | 6 | Build the release in CI instead of on spearow | Not planned |
 
 ## Using it
@@ -97,5 +97,26 @@ the real PATH and Start menu were not touched:
 | `irm | iex` with a `param()` block, in 5.1 | Defaults apply, `return` exits cleanly |
 | Script fetched from the raw GitHub URL, run against release `mw-1.3.1` | API lookup, download and checksum all good; exe is build 26.10.6306 from `3b805e1f` |
 
-Not done here: an install on a second, clean machine. syther would be the
-natural one, but installing software there was not part of the request.
+### On syther (2026-10-17)
+
+The README one-liner, run over SSH, installed `mw-1.3.1` first time: checksum
+verified, Start menu shortcut and PATH entry created, WebView2 found.
+
+It also surfaced a real-world snag. syther already had an older hand-copied
+Notepad4 in `D:\ut`, and `D:\ut` is on the **machine** PATH, which Windows
+searches before the user PATH the installer appends to. So typing `notepad4`
+still ran the old copy; only the Start menu shortcut reached the new one.
+
+Resolved by updating the existing copy in place instead:
+`install.ps1 -InstallDir D:\ut -NoPath` (that folder is already on PATH), after
+uninstalling the duplicate under `AppData`. The existing `Notepad4.ini` was
+untouched. One more lesson about installing into a shared folder like `D:\ut`:
+the zip's `License.txt` overwrote an unrelated program's `License.txt` there,
+so it was restored from a backup taken first
+(`D:\ut\_backup-before-notepad4-mw-1.3.1\`).
+
+**For a machine with an existing Notepad4 on PATH,** install over it with
+`-InstallDir <that folder> -NoPath` rather than alongside it.
+
+Not checkable over SSH: the window itself. Open Notepad4 on syther from the
+Start menu and check the title bar shows `mw 1.3.1`.
